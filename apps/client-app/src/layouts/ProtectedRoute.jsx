@@ -36,7 +36,7 @@ export default function ProtectedRoute() {
   };
 
   const menuItems = useMemo(
-    () => [getItem("File Manager", "/file-manager", <FolderOpenFilled />),
+    () => [
           getItem("Chat Room", "/chat", <MessageFilled />),
           getItem("Users", "/users", <UsergroupAddOutlined />),
           getItem("Groups", "/groups", <TeamOutlined />),

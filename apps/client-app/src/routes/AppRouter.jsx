@@ -74,12 +74,10 @@ const AppRouter = () => {
 
           {auth && (
             <>
-              <Route path="/" element={<Navigate to="/file-manager" />} />
                     
               <Route path="/" element={<ProtectedRoute />}>
-                <Route path="/file-manager" element={<FileManagerPage />} />
                  <Route path="/chat" element={<ChatRoom />} />         
-                <Route path="*" element={<Navigate to="/file-manager" />} />
+                <Route path="*" element={<Navigate to="/chat" />} />
               </Route>
             </>
           )}
