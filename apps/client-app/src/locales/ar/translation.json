@@ -1,3 +1,85 @@
 {
-    "login": "تسجيل الدخول"
+  "auth": {
+    "login": "تسجيل الدخول",
+    "login_success": "تم تسجيل الدخول",
+    "login_success_desc": "تم تسجيل دخولك بنجاح.",
+    "register": "تسجيل",
+    "register_title": "إنشاء حساب",
+    "register_success": "تم التسجيل بنجاح",
+    "register_success_desc": "تم إنشاء حسابك. يرجى تسجيل الدخول.",
+    "email": "البريد الإلكتروني",
+    "email_required": "حقل البريد الإلكتروني مطلوب",
+    "email_invalid": "يرجى إدخال بريد إلكتروني صحيح",
+    "email_placeholder": "أدخل بريدك الإلكتروني",
+    "password": "كلمة المرور",
+    "password_required": "حقل كلمة المرور مطلوب",
+    "password_min": "يجب أن تكون كلمة المرور 6 أحرف على الأقل",
+    "password_placeholder": "أدخل كلمة المرور",
+    "confirm_password": "تأكيد كلمة المرور",
+    "confirm_password_required": "يرجى تأكيد كلمة المرور",
+    "confirm_password_mismatch": "كلمات المرور غير متطابقة",
+    "confirm_password_placeholder": "أكد كلمة المرور",
+    "mobile": "رقم الجوال",
+    "mobile_required": "حقل رقم الجوال مطلوب",
+    "mobile_placeholder": "أدخل رقم الجوال",
+    "no_account": "ليس لديك حساب؟ أنشئ واحداً",
+    "have_account": "لديك حساب بالفعل؟ تسجيل الدخول"
+  },
+  "common": {
+    "cancel": "إلغاء",
+    "create": "إنشاء",
+    "open": "فتح",
+    "validation_error": "خطأ في التحقق",
+    "form_error": "يرجى مراجعة حقول النموذج والمحاولة مرة أخرى."
+  },
+  "chat": {
+    "groups": "المجموعات",
+    "create_group": "إنشاء مجموعة",
+    "create_group_title": "إنشاء مجموعة جديدة",
+    "direct_messages": "الرسائل المباشرة",
+    "group_chat": "محادثة مجموعة",
+    "direct_chat": "محادثة مباشرة",
+    "select_conversation": "اختر مستخدماً أو مجموعة لبدء المحادثة",
+    "no_messages": "لا توجد رسائل بعد",
+    "write_message": "اكتب رسالة...",
+    "group_name_placeholder": "اسم المجموعة",
+    "select_members": "اختر الأعضاء:"
+  },
+  "users": {
+    "title": "المستخدمون",
+    "not_found": "لا يوجد مستخدمون",
+    "load_error": "فشل في تحميل المستخدمين",
+    "message": "رسالة"
+  },
+  "groups": {
+    "title": "المجموعات",
+    "not_found": "لا توجد مجموعات",
+    "load_error": "فشل في تحميل المجموعات",
+    "create_success": "تم إنشاء المجموعة بنجاح",
+    "create_error": "فشل في إنشاء المجموعة",
+    "name_required": "اسم المجموعة مطلوب",
+    "member_required": "اختر عضواً واحداً على الأقل",
+    "open": "فتح",
+    "create_group": "إنشاء مجموعة",
+    "members": "أعضاء"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "description": "صفحة الإعدادات جاهزة."
+  },
+  "layout": {
+    "chat_room": "غرفة الدردشة",
+    "users": "المستخدمون",
+    "groups": "المجموعات",
+    "settings": "الإعدادات",
+    "logout": "تسجيل الخروج"
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "mark_all": "تحديد الكل كمقروء",
+    "clear": "مسح",
+    "empty": "لا توجد إشعارات بعد",
+    "new_message": "رسالة جديدة",
+    "new_group_message": "رسالة مجموعة جديدة"
+  }
 }

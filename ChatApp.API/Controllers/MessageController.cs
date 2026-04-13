@@ -45,6 +45,39 @@ public class MessageController : ControllerBase
         {
             var groupName = dto.ChatGroupId.ToString();
             await _hubContext.Clients.Group(groupName).SendAsync("ReceiveGroupMessage", userId, sender?.Email, dto.Content, message.Timestamp.ToString("o"));
+
+            var memberIds = await _context.ChatGroupUsers
+                .Where(gu => gu.ChatGroupId == dto.ChatGroupId && gu.UserId != userId)
+                .Select(gu => gu.UserId)
+                .ToListAsync();
+
+            var group = await _context.ChatGroups.FindAsync(dto.ChatGroupId);
+            var notifications = memberIds.Select(memberId => new Notification
+            {
+                Title = "New group message",
+                Description = $"{sender?.Email} sent a message in {group?.Name}",
+                Type = NotificationType.Info,
+                UserId = memberId,
+                SenderId = userId,
+                ChatGroupId = dto.ChatGroupId
+            }).ToList();
+
+            _context.Notifications.AddRange(notifications);
+            await _context.SaveChangesAsync();
+
+            foreach (var memberId in memberIds)
+            {
+                var n = notifications.First(x => x.UserId == memberId);
+                await _hubContext.Clients.User(memberId).SendAsync("ReceiveNotification", new
+                {
+                    n.Id,
+                    n.Title,
+                    n.Description,
+                    Type = n.Type.ToString().ToLower(),
+                    n.CreatedAt,
+                    Meta = new { n.SenderId, n.ChatGroupId }
+                });
+            }
         }
         else if (!string.IsNullOrEmpty(dto.ReceiverId))
         {
@@ -67,6 +100,28 @@ public class MessageController : ControllerBase
                                         sender?.Email,
                                         dto.Content,
                                         message.Timestamp);
+
+            var notification = new Notification
+            {
+                Title = "New private message",
+                Description = $"{sender?.Email} sent you a message",
+                Type = NotificationType.Info,
+                UserId = dto.ReceiverId,
+                SenderId = userId
+            };
+
+            _context.Notifications.Add(notification);
+            await _context.SaveChangesAsync();
+
+            await _hubContext.Clients.User(dto.ReceiverId).SendAsync("ReceiveNotification", new
+            {
+                notification.Id,
+                notification.Title,
+                notification.Description,
+                Type = notification.Type.ToString().ToLower(),
+                notification.CreatedAt,
+                Meta = new { notification.SenderId, notification.ChatGroupId }
+            });
         }
         else
         {

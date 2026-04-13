@@ -15,6 +15,22 @@ export const register = async (email, password, mobile) => {
   });
   return response;
 };
+
+export const getNotifications = async () => {
+  const response = await apiCommon.get("/notification");
+  return response;
+};
+
+export const markAllNotificationsAsRead = async () => {
+  const response = await apiCommon.put("/notification/read-all");
+  return response;
+};
+
+export const markNotificationAsRead = async (id) => {
+  const response = await apiCommon.put(`/notification/${id}/read`);
+  return response;
+};
+
 export const getAllUsers = async () => {
   const response = await apiCommon.get("/Auth/AllUsers");
 console.log("🚀 ~ getAllUsers ~ response:", response);

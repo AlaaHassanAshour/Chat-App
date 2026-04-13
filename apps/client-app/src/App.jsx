@@ -1,6 +1,7 @@
 import { ConfigProvider, theme } from "antd";
 import ThemeModeContext from "./contexts/ThemeMode.jsx";
 import LocalizationContext from "./contexts/Localization.jsx";
+import { NotificationsProvider } from "./contexts/Notifications.jsx";
 import AppRouter from "./routes/AppRouter.jsx";
 import { useThemeLocale } from "./hooks/useThemeLocale";
 import { APP_CONFIG } from "@config/env";
@@ -37,8 +38,10 @@ function App() {
         >
             <ThemeModeContext.Provider value={{ darkMode, darkModeChange }}>
                 <LocalizationContext.Provider value={{ localizationChange }}>
-                    <AppRouter />
-                    <InitAntStaticApi />
+                    <NotificationsProvider>
+                        <AppRouter />
+                        <InitAntStaticApi />
+                    </NotificationsProvider>
                 </LocalizationContext.Provider>
             </ThemeModeContext.Provider>
         </ConfigProvider>

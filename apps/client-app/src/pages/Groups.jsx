@@ -11,16 +11,20 @@ import {
   Checkbox,
   Space,
   message,
+  Avatar,
+  Tag,
 } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { PlusOutlined, TeamOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 
 import { createGroub, getAllUsers, getGroups } from "../services/api";
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 export default function GroupsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [messageApi, contextHolder] = message.useMessage();
   const [groups, setGroups] = useState([]);
   const [users, setUsers] = useState([]);
@@ -39,7 +43,7 @@ export default function GroupsPage() {
         const data = await getGroups();
         setGroups(Array.isArray(data) ? data : []);
       } catch (e) {
-        setError(e?.message || "Failed to load groups");
+        setError(e?.message || t("groups.load_error"));
       } finally {
         setLoading(false);
       }
@@ -63,12 +67,12 @@ export default function GroupsPage() {
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {
-      messageApi.warning("Group name is required");
+      messageApi.warning(t("groups.name_required"));
       return;
     }
 
     if (selectedMemberIds.length === 0) {
-      messageApi.warning("Select at least one member");
+      messageApi.warning(t("groups.member_required"));
       return;
     }
 
@@ -79,9 +83,9 @@ export default function GroupsPage() {
       setOpenCreateModal(false);
       setNewGroupName("");
       setSelectedMemberIds([]);
-      messageApi.success("Group created successfully");
+      messageApi.success(t("groups.create_success"));
     } catch (e) {
-      messageApi.error(e?.message || "Failed to create group");
+      messageApi.error(e?.message || t("groups.create_error"));
     } finally {
       setCreating(false);
     }
@@ -94,14 +98,14 @@ export default function GroupsPage() {
         style={{ width: "100%", justifyContent: "space-between", marginBottom: 12 }}
       >
         <Title level={3} style={{ margin: 0 }}>
-          Groups
+          {t("groups.title")}
         </Title>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={() => setOpenCreateModal(true)}
         >
-          Create Group
+          {t("groups.create_group")}
         </Button>
       </Space>
       {loading && <Spin />}
@@ -109,33 +113,59 @@ export default function GroupsPage() {
       {!loading && !error && (
         <List
           dataSource={groups}
-          locale={{ emptyText: "No groups found" }}
+          locale={{ emptyText: t("groups.not_found") }}
+          itemLayout="horizontal"
           renderItem={(group) => (
             <List.Item
-              style={{ cursor: "pointer" }}
+              style={{
+                cursor: "pointer",
+                padding: "12px 16px",
+                borderRadius: 8,
+                transition: "background 0.15s",
+              }}
+              className="group-list-item"
               onClick={() => navigate(`/chat/group/${group.id}`)}
+              extra={
+                <Tag
+                  icon={<TeamOutlined />}
+                  color="purple"
+                  style={{ cursor: "pointer" }}
+                >
+                  {t("groups.open")}
+                </Tag>
+              }
             >
-              <Text>{group.name || group.title || group.id}</Text>
+              <List.Item.Meta
+                avatar={
+                  <Avatar
+                    icon={<TeamOutlined />}
+                    style={{ background: "#722ed1" }}
+                  />
+                }
+                title={group.name || group.title || group.id}
+                description={`${group.memberCount ?? ""} ${t("groups.members")}`.trim()}
+              />
             </List.Item>
           )}
         />
       )}
 
       <Modal
-        title="Create Group"
+        title={t("chat.create_group_title")}
         open={openCreateModal}
-        okText="Create"
+        okText={t("common.create")}
+        cancelText={t("common.cancel")}
         onCancel={() => setOpenCreateModal(false)}
         onOk={handleCreateGroup}
         confirmLoading={creating}
       >
         <Space direction="vertical" style={{ width: "100%" }} size={12}>
           <Input
-            placeholder="Group name"
+            placeholder={t("chat.group_name_placeholder")}
             value={newGroupName}
             onChange={(e) => setNewGroupName(e.target.value)}
           />
-          <div>Select members:</div>
+          <div>{t("chat.select_members")}</div>
           <Checkbox.Group
             style={{
               display: "flex",

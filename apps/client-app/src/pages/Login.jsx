@@ -1,6 +1,8 @@
 import { useContext, useState } from "react";
 import { Button, Col, Form, Input, Row, Typography, theme } from "antd";
+import { MailOutlined, LockOutlined } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 
 import { useThemeMode } from "../contexts/ThemeMode";
 import Auth from "../contexts/Auth";
@@ -20,7 +22,7 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
   const navigate = useNavigate();
-  // Get theme token from antd
+  const { t } = useTranslation();
   const { token } = theme.useToken();
 
   const handleLogin = async (formData) => {
@@ -36,8 +38,8 @@ const LoginPage = () => {
         }
       );
       notification.success({
-        message: "Login Successful",
-        description: "You have been successfully logged in.",
+        message: t("auth.login_success"),
+        description: t("auth.login_success_desc"),
       });
       navigate("/chat", { replace: true });
     } catch {
@@ -55,8 +57,8 @@ const LoginPage = () => {
 
   const handleLoginFailed = () => {
     notification.error({
-      message: "Validation Error",
-      description: "Please check the form fields and try again.",
+      message: t("common.validation_error"),
+      description: t("common.form_error"),
     });
   };
 
@@ -71,12 +73,13 @@ const LoginPage = () => {
     >
       <Row
         style={{
-          width: "600px",
+          width: "100%",
+          maxWidth: "480px",
           padding: "40px",
-          borderRadius: "8px",
+          borderRadius: "12px",
           boxShadow: darkMode
-            ? `0 2px 8px ${token.colorBgElevated}57`
-            : "0 2px 8px #adadad57",
+            ? `0 4px 24px rgba(0,0,0,0.4)`
+            : "0 4px 24px rgba(0,0,0,0.10)",
           background: token.colorBgElevated,
         }}
       >
@@ -103,60 +106,48 @@ const LoginPage = () => {
           >
             <Form.Item
               name="email"
-              label="Eamil"
+              label={t("auth.email")}
               rules={[
-                {
-                  required: true,
-                  message: "The Eamil field is required",
-                },
-                {
-                  type: "email",
-                },
+                { required: true, message: t("auth.email_required") },
+                { type: "email", message: t("auth.email_invalid") },
               ]}
             >
-              <Input placeholder="Enter your Eamil" disabled={loading} />
-            </Form.Item>
-
-            <Form.Item
-              name="password"
-              label="Password"
-              rules={[
-                {
-                  required: true,
-                  message: "The Password field is required",
-                },
-                {
-                  min: 6,
-                  message:
-                    "The Password field must be with a minimum length of 6",
-                },
-              ]}
-            >
-              <Input.Password
-                placeholder="Enter your Password"
+              <Input
+                prefix={<MailOutlined style={{ opacity: 0.4 }} />}
+                placeholder={t("auth.email_placeholder")}
                 disabled={loading}
               />
             </Form.Item>
 
             <Form.Item
-              wrapperCol={{
-                offset: 7,
-                span: 24,
-              }}
+              name="password"
+              label={t("auth.password")}
+              rules={[
+                { required: true, message: t("auth.password_required") },
+                { min: 6, message: t("auth.password_min") },
+              ]}
             >
+              <Input.Password
+                prefix={<LockOutlined style={{ opacity: 0.4 }} />}
+                placeholder={t("auth.password_placeholder")}
+                disabled={loading}
+              />
+            </Form.Item>
+
+            <Form.Item wrapperCol={{ offset: 7, span: 17 }}>
               <Button
-                style={{
-                  width: "100px",
-                  marginRight: "10px",
-                }}
+                block
                 loading={loading}
                 type="primary"
                 htmlType="submit"
                 disabled={loading}
+                style={{ marginBottom: 12 }}
               >
-                Login
+                {t("auth.login")}
               </Button>
-              <Link to="/register">Create an account</Link>
+              <div style={{ textAlign: "center" }}>
+                <Link to="/register">{t("auth.no_account")}</Link>
+              </div>
             </Form.Item>
           </Form>
         </Col>

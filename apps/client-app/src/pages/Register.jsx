@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Button, Col, Form, Input, Row, Typography, theme } from "antd";
+import { MailOutlined, LockOutlined, PhoneOutlined } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 
 import { useThemeMode } from "../contexts/ThemeMode";
 import { notification } from "../utils/InitAntStaticApi";
@@ -13,6 +15,7 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { token } = theme.useToken();
 
   const handleRegister = async (formData) => {
@@ -20,8 +23,8 @@ const RegisterPage = () => {
       setLoading(true);
       await register(formData.email, formData.password, formData.mobile);
       notification.success({
-        message: "Registration Successful",
-        description: "Your account has been created. Please login.",
+        message: t("auth.register_success"),
+        description: t("auth.register_success_desc"),
       });
       navigate("/login");
     } catch {
@@ -36,8 +39,8 @@ const RegisterPage = () => {
 
   const handleRegisterFailed = () => {
     notification.error({
-      message: "Validation Error",
-      description: "Please check the form fields and try again.",
+      message: t("common.validation_error"),
+      description: t("common.form_error"),
     });
   };
 
@@ -52,24 +55,22 @@ const RegisterPage = () => {
     >
       <Row
         style={{
-          width: "600px",
+          width: "100%",
+          maxWidth: "480px",
           padding: "40px",
-          borderRadius: "8px",
+          borderRadius: "12px",
           boxShadow: darkMode
-            ? `0 2px 8px ${token.colorBgElevated}57`
-            : "0 2px 8px #adadad57",
+            ? `0 4px 24px rgba(0,0,0,0.4)`
+            : "0 4px 24px rgba(0,0,0,0.10)",
           background: token.colorBgElevated,
         }}
       >
         <Col span={24}>
           <Title
             level={2}
-            style={{
-              textAlign: "center",
-              marginBottom: "30px",
-            }}
+            style={{ textAlign: "center", marginBottom: "30px" }}
           >
-            Create Account
+            {t("auth.register_title")}
           </Title>
         </Col>
         <Col span={24}>
@@ -84,98 +85,85 @@ const RegisterPage = () => {
           >
             <Form.Item
               name="email"
-              label="Email"
+              label={t("auth.email")}
               rules={[
-                {
-                  required: true,
-                  message: "The Email field is required",
-                },
-                {
-                  type: "email",
-                  message: "Please enter a valid email address",
-                },
+                { required: true, message: t("auth.email_required") },
+                { type: "email", message: t("auth.email_invalid") },
               ]}
             >
-              <Input placeholder="Enter your Email" disabled={loading} />
+              <Input
+                prefix={<MailOutlined style={{ opacity: 0.4 }} />}
+                placeholder={t("auth.email_placeholder")}
+                disabled={loading}
+              />
             </Form.Item>
 
             <Form.Item
               name="password"
-              label="Password"
+              label={t("auth.password")}
               rules={[
-                {
-                  required: true,
-                  message: "The Password field is required",
-                },
-                {
-                  min: 6,
-                  message: "The Password field must be at least 6 characters",
-                },
+                { required: true, message: t("auth.password_required") },
+                { min: 6, message: t("auth.password_min") },
               ]}
             >
               <Input.Password
-                placeholder="Enter your Password"
+                prefix={<LockOutlined style={{ opacity: 0.4 }} />}
+                placeholder={t("auth.password_placeholder")}
                 disabled={loading}
               />
             </Form.Item>
 
             <Form.Item
               name="confirmPassword"
-              label="Confirm Password"
+              label={t("auth.confirm_password")}
               dependencies={["password"]}
               rules={[
-                {
-                  required: true,
-                  message: "Please confirm your password",
-                },
+                { required: true, message: t("auth.confirm_password_required") },
                 ({ getFieldValue }) => ({
                   validator(_, value) {
                     if (!value || getFieldValue("password") === value) {
                       return Promise.resolve();
                     }
-                    return Promise.reject(new Error("Passwords do not match"));
+                    return Promise.reject(new Error(t("auth.confirm_password_mismatch")));
                   },
                 }),
               ]}
             >
               <Input.Password
-                placeholder="Confirm your Password"
+                prefix={<LockOutlined style={{ opacity: 0.4 }} />}
+                placeholder={t("auth.confirm_password_placeholder")}
                 disabled={loading}
               />
             </Form.Item>
 
             <Form.Item
               name="mobile"
-              label="Mobile"
+              label={t("auth.mobile")}
               rules={[
-                {
-                  required: true,
-                  message: "The Mobile field is required",
-                },
+                { required: true, message: t("auth.mobile_required") },
               ]}
             >
-              <Input placeholder="Enter your Mobile" disabled={loading} />
+              <Input
+                prefix={<PhoneOutlined style={{ opacity: 0.4 }} />}
+                placeholder={t("auth.mobile_placeholder")}
+                disabled={loading}
+              />
             </Form.Item>
 
-            <Form.Item
-              wrapperCol={{
-                offset: 7,
-                span: 24,
-              }}
-            >
+            <Form.Item wrapperCol={{ offset: 7, span: 17 }}>
               <Button
-                style={{
-                  width: "120px",
-                  marginRight: "16px",
-                }}
+                block
                 loading={loading}
                 type="primary"
                 htmlType="submit"
                 disabled={loading}
+                style={{ marginBottom: 12 }}
               >
-                Register
+                {t("auth.register")}
               </Button>
-              <Link to="/login">Already have an account?</Link>
+              <div style={{ textAlign: "center" }}>
+                <Link to="/login">{t("auth.have_account")}</Link>
+              </div>
             </Form.Item>
           </Form>
         </Col>
