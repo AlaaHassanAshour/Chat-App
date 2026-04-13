@@ -22,6 +22,7 @@ import {
   Input,
   Typography,
   Divider,
+  theme,
 } from "antd";
 import {
   UserOutlined,
@@ -93,12 +94,13 @@ export default function ChatRoom() {
 
   /* scroll‑bottom ref */
   const bottomRef = useRef(null);
+  const { token: themeToken } = theme.useToken();
 
   /* ------------------------------------------------------------------ */
   /* 🔌 SignalR connection (once) */
   useEffect(() => {
     const connection = new HubConnectionBuilder()
-      .withUrl("https://localhost:7152/chatHub", {
+      .withUrl("https://localhost:7056/chatHub", {
         accessTokenFactory: () => token,
       })
       .withAutomaticReconnect()
@@ -253,7 +255,10 @@ export default function ChatRoom() {
     <>
       <Layout style={{ height: "100vh" }}>
         {/* ========== Sidebar ========== */}
-        <Sider width={260} style={{ background: "#fff", padding: 16 }}>
+        <Sider
+          width={260}
+          style={{ background: themeToken.colorBgContainer, padding: 16 }}
+        >
           <Title level={4}>📁 المجموعات</Title>
 
           <Button
@@ -302,7 +307,7 @@ export default function ChatRoom() {
               style={{
                 flex: 1,
                 overflowY: "auto",
-                background: "#fafafa",
+                background: themeToken.colorBgContainer,
                 borderRadius: 8,
                 padding: 12,
               }}
@@ -317,6 +322,7 @@ export default function ChatRoom() {
                     borderRadius: 18,
                     background: isMe ? "#DCF8C6" : "#FFF",
                     boxShadow: "0 0 4px rgba(0,0,0,0.05)",
+                    color: "#1f1f1f",
                   };
                   const time = new Date(msg.timestamp).toLocaleString("ar-EG", {
                     dateStyle: "short",
@@ -331,15 +337,21 @@ export default function ChatRoom() {
                       }}
                     >
                       <div style={bubble}>
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            marginBottom: 4,
+                            color: "#1f1f1f",
+                          }}
+                        >
                           {isMe ? `أنا (${msg.senderName})` : msg.senderName}
                         </div>
-                        <div>{msg.content}</div>
+                        <div style={{ color: "#1f1f1f" }}>{msg.content}</div>
                         <div
                           style={{
                             fontSize: 12,
                             textAlign: "right",
-                            color: "#666",
+                            color: "#595959",
                             marginTop: 6,
                           }}
                         >

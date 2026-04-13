@@ -7,21 +7,29 @@ export const login = async (username, password) => {
 
   return response;
 };
+export const register = async (email, password, mobile) => {
+  const response = await apiCommon.post("/Auth/register", {
+    email,
+    password,
+    mobile,
+  });
+  return response;
+};
 export const getAllUsers = async () => {
   const response = await apiCommon.get("/Auth/AllUsers");
 console.log("🚀 ~ getAllUsers ~ response:", response);
   return response;
 };
 export const getGroups = async () => {
-  const res = await apiCommon.get("https://localhost:7152/api/Message/groubs");
+  const res = await apiCommon.get("https://localhost:7056/api/Message/groubs");
   return res;
 };
 export const getGroupsUser = async () => {
-  const res = await apiCommon.get("https://localhost:7152/api/Message/groupsUser");
+  const res = await apiCommon.get("https://localhost:7056/api/Message/groupsUser");
   return res;
 };
 export const getMassegesGroups = async (groupId) => {
- const res = await apiCommon.get(`https://localhost:7152/api/message/group/${groupId}`, {
+ const res = await apiCommon.get(`https://localhost:7056/api/message/group/${groupId}`, {
       });
     return res;
     }
@@ -31,7 +39,7 @@ export const getPrivateMessages = async (receiverId) => {
   return response;
 };
 export const sendMessages= async(content,receiverId,chatGroupId)=>{
-  await apiCommon.post("https://localhost:7152/api/message/send", {
+  await apiCommon.post("https://localhost:7056/api/message/send", {
                           content,
                           receiverId,
                           chatGroupId
@@ -39,7 +47,7 @@ export const sendMessages= async(content,receiverId,chatGroupId)=>{
 }
 
 export const createGroub = async (name ,memberIds) => {
- const res = await  apiCommon.post("https://localhost:7152/api/message/groups", {
+ const res = await  apiCommon.post("https://localhost:7056/api/message/groups", {
      name,
     memberIds,
     });

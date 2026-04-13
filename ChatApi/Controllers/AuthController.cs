@@ -1,8 +1,6 @@
 ﻿using ChatApi.DTOs;
 using ChatApi.Models;
 using ChatApi.Services;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -24,11 +22,10 @@ namespace ChatApi.Controllers
         [HttpGet("AllUsers")]
         public async Task<IActionResult> GetUsers()
         {
-            var users = await _userManager.Users.Select(x => new 
+            var users = await _userManager.Users.Select(x => new
             {
-              x.Id,
-               x.Email,
-
+                x.Id,
+                x.Email,
             }).ToListAsync();
             return Ok(users);
         }

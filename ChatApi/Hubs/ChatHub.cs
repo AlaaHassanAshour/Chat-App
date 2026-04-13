@@ -1,7 +1,7 @@
-﻿
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 
 namespace ChatApi.Hubs;
+
 public class ChatHub : Hub
 {
     public async Task JoinGroup(string groupName)
@@ -13,6 +13,7 @@ public class ChatHub : Hub
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
     }
+
     public override Task OnConnectedAsync()
     {
         Console.WriteLine(">> Connected: " +
@@ -20,5 +21,4 @@ public class ChatHub : Hub
         return base.OnConnectedAsync();
     }
 }
-
 
