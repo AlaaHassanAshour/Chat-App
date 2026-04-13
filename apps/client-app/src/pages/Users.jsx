@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Card, List, Typography, Spin, Alert } from "antd";
+import { useNavigate } from "react-router";
 
 import { getAllUsers } from "../services/api";
 
 const { Title, Text } = Typography;
 
 export default function UsersPage() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -37,7 +39,10 @@ export default function UsersPage() {
           dataSource={users}
           locale={{ emptyText: "No users found" }}
           renderItem={(user) => (
-            <List.Item>
+            <List.Item
+              style={{ cursor: "pointer" }}
+              onClick={() => navigate(`/chat/user/${user.id}`)}
+            >
               <Text>{user.email || user.userName || user.id}</Text>
             </List.Item>
           )}

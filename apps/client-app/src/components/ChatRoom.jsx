@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { HubConnectionBuilder } from "@microsoft/signalr";
 import { jwtDecode } from "jwt-decode";
+import { useNavigate, useParams } from "react-router";
 
 import {
   getAllUsers,
@@ -65,6 +66,8 @@ const useCurrentUserId = (token) =>
 
 
 export default function ChatRoom() {
+  const navigate = useNavigate();
+  const { userId: routeUserId, groupId: routeGroupId } = useParams();
   /* ------------------------------------------------------------------ */
   /* 🆔 user & token */
     const token = localStorage.getItem(AUTH_CONFIG.tokenKey || "accessToken");
@@ -218,6 +221,18 @@ export default function ChatRoom() {
     [hub, currentUserId]
   );
 
+  useEffect(() => {
+    if (routeUserId) {
+      setSelectedReceiverId(routeUserId.toString());
+      setSelectedGroupId(null);
+      return;
+    }
+
+    if (routeGroupId && hub) {
+      joinGroup(routeGroupId.toString());
+    }
+  }, [routeUserId, routeGroupId, hub, joinGroup]);
+
   /* ------------------------------------------------------------------ */
   /* 📨 send */
   const sendMessage = useCallback(async () => {
@@ -275,7 +290,7 @@ export default function ChatRoom() {
             mode="inline"
             selectedKeys={[selectedGroupId?.toString()]}
             items={groupMenuItems}
-            onClick={({ key }) => joinGroup(key)}
+            onClick={({ key }) => navigate(`/chat/group/${key}`)}
           />
 
           <Divider />
@@ -285,10 +300,7 @@ export default function ChatRoom() {
             mode="inline"
             selectedKeys={[selectedReceiverId?.toString()]}
             items={userMenuItems}
-            onClick={({ key }) => {
-              setSelectedReceiverId(key);
-              setSelectedGroupId(null);
-            }}
+            onClick={({ key }) => navigate(`/chat/user/${key}`)}
           />
         </Sider>
 
