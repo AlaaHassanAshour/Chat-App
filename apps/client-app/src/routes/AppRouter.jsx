@@ -4,7 +4,11 @@ import { Col, Layout, Row, Spin } from "antd";
 
 // unprotcted pages
 import LoginPage from "../pages/Login";
+import RegisterPage from "../pages/Register";
 import FileManagerPage from "../pages/FileManager";
+import UsersPage from "../pages/Users";
+import GroupsPage from "../pages/Groups";
+import SettingsPage from "../pages/Settings";
 import ChatRoom from "../components/ChatRoom";
 
 import UnprotectedRouteLayout from "../layouts/UnprotectedRoute";
@@ -68,15 +72,28 @@ const AppRouter = () => {
                   </UnprotectedRouteLayout>
                 }
               />
+              <Route
+                path="/register"
+                element={
+                  <UnprotectedRouteLayout>
+                    <RegisterPage />
+                  </UnprotectedRouteLayout>
+                }
+              />
               <Route path="*" element={<Navigate to="/login" />} />
             </>
           )}
 
           {auth && (
             <>
-                    
               <Route path="/" element={<ProtectedRoute />}>
-                 <Route path="/chat" element={<ChatRoom />} />         
+                <Route index element={<Navigate to="/chat" replace />} />
+                <Route path="/chat" element={<ChatRoom />} />
+                <Route path="/chat/user/:userId" element={<ChatRoom />} />
+                <Route path="/chat/group/:groupId" element={<ChatRoom />} />
+                <Route path="/users" element={<UsersPage />} />
+                <Route path="/groups" element={<GroupsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/chat" />} />
               </Route>
             </>

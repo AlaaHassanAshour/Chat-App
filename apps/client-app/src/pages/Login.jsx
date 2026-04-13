@@ -1,5 +1,6 @@
 import { useContext, useState } from "react";
 import { Button, Col, Form, Input, Row, Typography, theme } from "antd";
+import { Link, useNavigate } from "react-router";
 
 import { useThemeMode } from "../contexts/ThemeMode";
 import Auth from "../contexts/Auth";
@@ -18,6 +19,7 @@ const LoginPage = () => {
   const { darkMode } = useThemeMode();
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
+  const navigate = useNavigate();
   // Get theme token from antd
   const { token } = theme.useToken();
 
@@ -26,12 +28,18 @@ const LoginPage = () => {
       setLoading(true);
       const response = await login(formData.email, formData.password);
       console.log("Login response:", response);
-      setAuth(response.userInfo);
       localStorage.setItem(AUTH_CONFIG.tokenKey, response.token);
+      setAuth(
+        response.userInfo || {
+          email: formData.email,
+          accessToken: response.token,
+        }
+      );
       notification.success({
         message: "Login Successful",
         description: "You have been successfully logged in.",
       });
+      navigate("/chat", { replace: true });
     } catch {
       // Clear password field on error
       form.setFields([
@@ -148,6 +156,7 @@ const LoginPage = () => {
               >
                 Login
               </Button>
+              <Link to="/register">Create an account</Link>
             </Form.Item>
           </Form>
         </Col>

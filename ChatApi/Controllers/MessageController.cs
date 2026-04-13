@@ -3,13 +3,10 @@ using ChatApi.DTOs;
 using ChatApi.Hubs;
 using ChatApi.Models;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
-using System.Reflection;
 using System.Security.Claims;
-using System.Text.RegularExpressions;
 
 namespace ChatApi.Controllers
 {
@@ -36,7 +33,6 @@ namespace ChatApi.Controllers
             var message = new Message
             {
                 Content = dto.Content,
-
                 SenderId = userId,
                 Timestamp = DateTime.UtcNow,
                 ChatGroupId = dto.ChatGroupId,
@@ -45,7 +41,6 @@ namespace ChatApi.Controllers
 
             _context.Messages.Add(message);
             await _context.SaveChangesAsync();
-
 
             if (dto.ChatGroupId != null)
             {

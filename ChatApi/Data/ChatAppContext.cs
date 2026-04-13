@@ -16,7 +16,6 @@ public class ChatAppContext : IdentityDbContext<AppUser>
     {
         base.OnModelCreating(builder);
 
-
         builder.Entity<ChatGroupUser>()
       .HasKey(cg => new { cg.ChatGroupId, cg.UserId }); // المفتاح المركب
 
@@ -49,8 +48,5 @@ public class ChatAppContext : IdentityDbContext<AppUser>
         .WithMany(u => u.ReceivedMessages)
         .HasForeignKey(m => m.ReceiverId)
         .OnDelete(DeleteBehavior.NoAction);
-
-
-
     }
 }
