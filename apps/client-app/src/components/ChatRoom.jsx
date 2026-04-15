@@ -197,6 +197,8 @@ export default function ChatRoom() {
   const { token: themeToken } = theme.useToken();
   const typingTimeoutsRef = useRef({});
   const groupTypingTimeoutsRef = useRef({});
+  const recentNotificationRef = useRef(new Map());
+  const typingEmitTimeoutRef = useRef(null);
 
   /* ------------------------------------------------------------------ */
   /* 🔌 SignalR connection (once) */
@@ -234,12 +236,30 @@ export default function ChatRoom() {
     const currentUserKey = normalizeUserId(currentUserId);
     const selectedDirectKey = selectedReceiverId?.toString();
     const selectedGroupKey = selectedGroupId?.toString();
+    const shouldEmitNotification = (key) => {
+      const now = Date.now();
+      const ttlMs = 1800;
+      const map = recentNotificationRef.current;
+
+      for (const [existingKey, ts] of map.entries()) {
+        if (now - ts > ttlMs) {
+          map.delete(existingKey);
+        }
+      }
+
+      if (!key) return true;
+      if (map.has(key)) return false;
+
+      map.set(key, now);
+      return true;
+    };
 
     const onReceivePrivate = (senderId, senderName, content, timestamp) => {
       const isMine = normalizeUserId(senderId) === currentUserKey;
       const senderKey = senderId?.toString();
       const isActiveDirectConversation =
         !isMine && selectedDirectKey && senderKey === selectedDirectKey;
+      const notificationKey = `direct:${senderKey}:${timestamp}:${content}`;
 
       setMessages((prev) => [
         ...prev,
@@ -256,7 +276,7 @@ export default function ChatRoom() {
         },
       ]);
 
-      if (!isMine && !isActiveDirectConversation) {
+      if (!isMine && !isActiveDirectConversation && shouldEmitNotification(notificationKey)) {
         pushNotification({
           title: t("notifications.new_message"),
           description: `${senderName}: ${content}`,
@@ -283,6 +303,7 @@ export default function ChatRoom() {
       const groupKey = groupId?.toString();
       const isActiveGroupConversation =
         !isMine && selectedGroupKey && groupKey && groupKey === selectedGroupKey;
+      const notificationKey = `group:${groupKey}:${senderId}:${timestamp}:${content}`;
 
       setMessages((prev) => [
         ...prev,
@@ -299,7 +320,7 @@ export default function ChatRoom() {
         },
       ]);
 
-      if (!isMine && !isActiveGroupConversation) {
+      if (!isMine && !isActiveGroupConversation && shouldEmitNotification(notificationKey)) {
         pushNotification({
           title: t("notifications.new_group_message"),
           description: `${senderName}: ${content}`,
@@ -332,9 +353,11 @@ export default function ChatRoom() {
         conversationType === "direct" && selectedDirectKey && senderKey === selectedDirectKey;
       const isActiveGroupConversation =
         conversationType === "group" && selectedGroupKey && groupKey === selectedGroupKey;
+      const notificationKey = `${conversationType}:${groupKey || senderKey}:${notification.createdAt || notification.CreatedAt || ""}:${notification.description || notification.Description || ""}`;
 
       if (isMine) return;
       if (isActiveDirectConversation || isActiveGroupConversation) return;
+      if (!shouldEmitNotification(notificationKey)) return;
 
       pushNotification({
         title: notification.title || notification.Title || t("notifications.title"),
@@ -990,7 +1013,19 @@ export default function ChatRoom() {
       }
     };
 
-    notifyTypingState();
+    if (typingEmitTimeoutRef.current) {
+      clearTimeout(typingEmitTimeoutRef.current);
+    }
+
+    typingEmitTimeoutRef.current = setTimeout(() => {
+      notifyTypingState();
+    }, 280);
+
+    return () => {
+      if (typingEmitTimeoutRef.current) {
+        clearTimeout(typingEmitTimeoutRef.current);
+      }
+    };
   }, [hub, message, selectedGroupId, selectedReceiverId, selectedGroup]);
 
   /* ------------------------------------------------------------------ */
