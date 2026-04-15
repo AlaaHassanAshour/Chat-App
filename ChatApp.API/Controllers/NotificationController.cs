@@ -1,64 +1,39 @@
-using ChatApp.Application.Models;
-using ChatApp.Infrastructure.Data;
-using ChatApp.API.Hubs;
+using Asp.Versioning;
+using ChatApp.Application.DTOs;
+using ChatApp.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace ChatApp.API.Controllers;
 
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/[controller]")]
 [Route("api/[controller]")]
 [ApiController]
 [Authorize]
 public class NotificationController : ControllerBase
 {
-    private readonly ChatAppContext _context;
-    private readonly IHubContext<ChatHub> _hubContext;
+    private readonly INotificationService _notificationService;
 
-    public NotificationController(ChatAppContext context, IHubContext<ChatHub> hubContext)
+    public NotificationController(INotificationService notificationService)
     {
-        _context = context;
-        _hubContext = hubContext;
+        _notificationService = notificationService;
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetNotifications()
+    public async Task<IActionResult> GetNotifications([FromQuery] PaginationParams pagination)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        var notifications = await _context.Notifications
-            .Where(n => n.UserId == userId)
-            .OrderByDescending(n => n.CreatedAt)
-            .Select(n => new
-            {
-                n.Id,
-                n.Title,
-                n.Description,
-                Type = n.Type.ToString().ToLower(),
-                n.IsRead,
-                n.CreatedAt,
-                Meta = new
-                {
-                    n.SenderId,
-                    n.ChatGroupId
-                }
-            })
-            .ToListAsync();
-
-        return Ok(notifications);
+        var result = await _notificationService.GetNotificationsAsync(userId, pagination);
+        return Ok(result);
     }
 
     [HttpPut("read-all")]
     public async Task<IActionResult> ReadAll()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        await _context.Notifications
-            .Where(n => n.UserId == userId && !n.IsRead)
-            .ExecuteUpdateAsync(s => s.SetProperty(n => n.IsRead, true));
-
+        await _notificationService.MarkAllAsReadAsync(userId);
         return NoContent();
     }
 
@@ -66,16 +41,31 @@ public class NotificationController : ControllerBase
     public async Task<IActionResult> ReadOne(int id)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var success = await _notificationService.MarkAsReadAsync(userId, id);
+        return success ? NoContent() : NotFound();
+    }
 
-        var notification = await _context.Notifications
-            .FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
+    [HttpGet("unread-count")]
+    public async Task<IActionResult> GetUnreadCount()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var count = await _notificationService.GetUnreadCountAsync(userId);
+        return Ok(new { unreadCount = count });
+    }
 
-        if (notification == null)
-            return NotFound();
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteNotification(int id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var success = await _notificationService.DeleteNotificationAsync(userId, id);
+        return success ? NoContent() : NotFound();
+    }
 
-        notification.IsRead = true;
-        await _context.SaveChangesAsync();
-
+    [HttpDelete("clear-all")]
+    public async Task<IActionResult> ClearAll()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        await _notificationService.ClearAllAsync(userId);
         return NoContent();
     }
 }

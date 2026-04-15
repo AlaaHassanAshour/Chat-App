@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, useEffect } from "react";
+import { createContext, useContext, useMemo, useState, useEffect, useCallback, useRef } from "react";
 
 import { notification as antNotification } from "../utils/InitAntStaticApi";
 import {
@@ -19,28 +19,83 @@ const normalizeNotification = (item) => ({
   createdAt: item.createdAt || item.createdOn || new Date().toISOString(),
 });
 
+const getNotificationKey = (item) => {
+  if (item.id && !item.id.toString().startsWith("local-")) {
+    return `id:${item.id}`;
+  }
+
+  const type = item.meta?.conversationType || "generic";
+  const senderId = item.meta?.senderId || "";
+  const groupId = item.meta?.groupId || "";
+  const time = item.meta?.timestamp || item.createdAt || "";
+  return `sig:${type}:${senderId}:${groupId}:${item.description}:${time}`;
+};
+
+const dedupeNotifications = (rows) => {
+  const seen = new Set();
+  return rows.filter((item) => {
+    const key = getNotificationKey(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 export function NotificationsProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const isReloadingRef = useRef(false);
+
+  const reloadNotifications = useCallback(async ({ silent = false } = {}) => {
+    if (isReloadingRef.current) return;
+    isReloadingRef.current = true;
+
+    try {
+      if (!silent) {
+        setIsLoadingNotifications(true);
+      }
+
+      const response = await getNotifications();
+      const rows = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.items)
+          ? response.items
+          : Array.isArray(response?.data)
+            ? response.data
+            : [];
+      setNotifications(dedupeNotifications(rows.map(normalizeNotification)));
+    } catch {
+      setNotifications([]);
+    } finally {
+      isReloadingRef.current = false;
+      if (!silent) {
+        setIsLoadingNotifications(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    const loadNotifications = async () => {
-      try {
-        const response = await getNotifications();
-        const rows = Array.isArray(response)
-          ? response
-          : Array.isArray(response?.items)
-            ? response.items
-            : Array.isArray(response?.data)
-              ? response.data
-              : [];
-        setNotifications(rows.map(normalizeNotification));
-      } catch {
-        setNotifications([]);
+    reloadNotifications();
+  }, [reloadNotifications]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      reloadNotifications({ silent: true });
+    }, 30000);
+
+    return () => clearInterval(intervalId);
+  }, [reloadNotifications]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        reloadNotifications({ silent: true });
       }
     };
 
-    loadNotifications();
-  }, []);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [reloadNotifications]);
 
   const pushNotification = ({
     title,
@@ -58,7 +113,10 @@ export function NotificationsProvider({ children }) {
       createdAt: new Date().toISOString(),
     };
 
-    setNotifications((prev) => [item, ...prev]);
+    setNotifications((prev) => {
+      const next = dedupeNotifications([item, ...prev]);
+      return next;
+    });
 
     if (antNotification?.[type]) {
       antNotification[type]({
@@ -99,6 +157,9 @@ export function NotificationsProvider({ children }) {
       .filter((item) => {
         if (item.isRead) return false;
         if (senderId) {
+          const notificationType = item.meta?.conversationType;
+          const isGroup = notificationType === "group" || Boolean(item.meta?.groupId);
+          if (isGroup) return false;
           return item.meta?.senderId?.toString() === senderId.toString();
         }
         if (groupId) {
@@ -141,6 +202,8 @@ export function NotificationsProvider({ children }) {
   const value = {
     notifications,
     unreadCount,
+    isLoadingNotifications,
+    reloadNotifications,
     pushNotification,
     markAsRead,
     markAllAsRead,

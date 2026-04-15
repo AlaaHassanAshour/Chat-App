@@ -1,6 +1,8 @@
 using ChatApp.Application.Interfaces;
 using ChatApp.Application.Models;
 using ChatApp.API.Hubs;
+using ChatApp.API.Middleware;
+using ChatApp.API.Services;
 using ChatApp.Infrastructure.Data;
 using ChatApp.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -10,8 +12,17 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, config) => config
+    .ReadFrom.Configuration(context.Configuration)
+    .WriteTo.Console()
+    .WriteTo.File("logs/chatapp-.log", rollingInterval: RollingInterval.Day)
+    .Enrich.FromLogContext());
 
 // Add services to the container.
 builder.Services.AddDbContext<ChatAppContext>(options =>
@@ -98,6 +109,7 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddSingleton<IUserIdProvider, NameUserIdProvider>();
+builder.Services.AddSingleton<UserConnectionManager>();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -106,9 +118,42 @@ builder.Services.AddControllers()
     });
 builder.Services.AddSignalR();
 builder.Services.AddAuthorization();
+builder.Services.AddResponseCaching();
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new Asp.Versioning.ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+    options.ApiVersionReader = Asp.Versioning.ApiVersionReader.Combine(
+        new Asp.Versioning.UrlSegmentApiVersionReader(),
+        new Asp.Versioning.HeaderApiVersionReader("X-Api-Version"));
+}).AddApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
+});
 builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IMessageService, MessageService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("auth", opt =>
+    {
+        opt.PermitLimit = 10;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<ChatAppContext>("database");
 
 var app = builder.Build();
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseSerilogRequestLogging();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -118,12 +163,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseRateLimiter();
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseResponseCaching();
 
 app.MapHub<ChatHub>("/chatHub");
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 app.Run();
+

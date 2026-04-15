@@ -7,11 +7,15 @@ import { useTranslation } from "react-i18next";
 
 import {
   getAllUsers,
+  getOnlineUsers,
   getPrivateMessages,
+  markPrivateMessagesAsRead,
+  markGroupMessagesAsRead,
   getGroupsUser,
   getMassegesGroups,
   createGroub,
   sendMessages,
+  searchMessages,
 } from "../services/api";
 
 import {
@@ -29,6 +33,8 @@ import {
   Empty,
   Avatar,
   Badge,
+  Tag,
+  Tooltip,
 } from "antd";
 import {
   UserOutlined,
@@ -36,6 +42,9 @@ import {
   PlusOutlined,
   SendOutlined,
   WechatOutlined,
+  SearchOutlined,
+  CloseOutlined,
+  CheckOutlined,
 } from "@ant-design/icons";
 
 import { AUTH_CONFIG } from "../config/env";
@@ -49,12 +58,80 @@ const { TextArea } = Input;
 /* 🔧 helper */
 const mapMessages = (rows, currentUserId) =>
   rows.map((m) => ({
+    id: m.id,
     senderId: m.senderId,
+    receiverId: m.receiverId,
+    chatGroupId: m.chatGroupId,
     senderName: m.senderName,
     content: m.content,
     mine: m.senderId === currentUserId,
     timestamp: m.timestamp,
+    isRead: Boolean(m.isRead || m.readAt),
+    readAt: m.readAt || null,
   }));
+
+const extractMessageRows = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.messages)) return payload.messages;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.data?.messages)) return payload.data.messages;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+};
+
+const normalizeGroupName = (groupName) => (groupName || "").trim().toLowerCase();
+
+const getReadEventReadAt = (args) => {
+  const payload = args.find((arg) => arg && typeof arg === "object" && !Array.isArray(arg));
+  if (payload?.readAt) return payload.readAt;
+
+  const dateLikeArg = args.find(
+    (arg) => typeof arg === "string" && !Number.isNaN(Date.parse(arg))
+  );
+  return dateLikeArg || new Date().toISOString();
+};
+
+const normalizeUserId = (value) => value?.toString()?.trim()?.toLowerCase();
+
+const getMetaField = (meta, ...names) => {
+  if (!meta || typeof meta !== "object") return undefined;
+
+  const keys = Object.keys(meta);
+  for (const name of names) {
+    const foundKey = keys.find((k) => k.toLowerCase() === name.toLowerCase());
+    if (foundKey) return meta[foundKey];
+  }
+
+  return undefined;
+};
+
+const isGroupNotification = (notification) => {
+  const type = (
+    notification?.meta?.conversationType ||
+    notification?.type ||
+    notification?.Type ||
+    ""
+  )
+    .toString()
+    .toLowerCase();
+
+  const groupId =
+    getMetaField(notification?.meta, "groupId", "chatGroupId") ||
+    getMetaField(notification?.Meta, "groupId", "chatGroupId");
+
+  return type.includes("group") || type === "group" || Boolean(groupId);
+};
+
+const isDirectNotification = (notification) => {
+  const type = (notification?.meta?.conversationType || "").toString().toLowerCase();
+  const hasSender = Boolean(
+    getMetaField(notification?.meta, "senderId") ||
+      getMetaField(notification?.Meta, "senderId") ||
+      notification?.senderId
+  );
+  return !isGroupNotification(notification) && (type === "direct" || hasSender);
+};
+
   /**
  * Decode JWT once whenever token changes.
  */
@@ -74,7 +151,7 @@ const useCurrentUserId = (token) =>
 export default function ChatRoom() {
   const navigate = useNavigate();
   const { userId: routeUserId, groupId: routeGroupId } = useParams();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { pushNotification, notifications, markConversationAsRead } = useNotifications();
   /* ------------------------------------------------------------------ */
   /* 🆔 user & token */
@@ -99,6 +176,16 @@ export default function ChatRoom() {
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [messagesLoading, setMessagesLoading] = useState(false);
 
+  /* search */
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchInputRef = useRef(null);
+  const [onlineUsers, setOnlineUsers] = useState({});
+  const [typingUsers, setTypingUsers] = useState({});
+  const [typingUsersInGroup, setTypingUsersInGroup] = useState({});
+
   /* new‑group modal */
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -108,6 +195,8 @@ export default function ChatRoom() {
   const bottomRef = useRef(null);
   const firstUnreadRef = useRef(null);
   const { token: themeToken } = theme.useToken();
+  const typingTimeoutsRef = useRef({});
+  const groupTypingTimeoutsRef = useRef({});
 
   /* ------------------------------------------------------------------ */
   /* 🔌 SignalR connection (once) */
@@ -127,24 +216,47 @@ export default function ChatRoom() {
     return () => connection.stop();
   }, [token]);
 
+  const selectedUser = useMemo(
+    () => users.find((u) => u.id?.toString() === selectedReceiverId?.toString()),
+    [users, selectedReceiverId]
+  );
+
+  const selectedGroup = useMemo(
+    () => groups.find((g) => g.id?.toString() === selectedGroupId?.toString()),
+    [groups, selectedGroupId]
+  );
+
   /* ------------------------------------------------------------------ */
   /* 📥 listeners */
   useEffect(() => {
     if (!hub) return;
 
+    const currentUserKey = normalizeUserId(currentUserId);
+    const selectedDirectKey = selectedReceiverId?.toString();
+    const selectedGroupKey = selectedGroupId?.toString();
+
     const onReceivePrivate = (senderId, senderName, content, timestamp) => {
+      const isMine = normalizeUserId(senderId) === currentUserKey;
+      const senderKey = senderId?.toString();
+      const isActiveDirectConversation =
+        !isMine && selectedDirectKey && senderKey === selectedDirectKey;
+
       setMessages((prev) => [
         ...prev,
         {
+          id: `${senderId}-${timestamp}`,
           senderId,
+          receiverId: isMine ? selectedReceiverId : currentUserId,
           senderName,
           content,
-          mine: senderId === currentUserId,
+          mine: isMine,
           timestamp,
+          isRead: false,
+          readAt: null,
         },
       ]);
 
-      if (senderId !== currentUserId) {
+      if (!isMine && !isActiveDirectConversation) {
         pushNotification({
           title: t("notifications.new_message"),
           description: `${senderName}: ${content}`,
@@ -167,18 +279,27 @@ export default function ChatRoom() {
       groupId,
       groupName
     ) => {
+      const isMine = normalizeUserId(senderId) === currentUserKey;
+      const groupKey = groupId?.toString();
+      const isActiveGroupConversation =
+        !isMine && selectedGroupKey && groupKey && groupKey === selectedGroupKey;
+
       setMessages((prev) => [
         ...prev,
         {
+          id: `${groupId}-${senderId}-${timestamp}`,
           senderId,
+          chatGroupId: groupId,
           senderName,
           content,
-          mine: senderId === currentUserId,
+          mine: isMine,
           timestamp,
+          isRead: false,
+          readAt: null,
         },
       ]);
 
-      if (senderId !== currentUserId) {
+      if (!isMine && !isActiveGroupConversation) {
         pushNotification({
           title: t("notifications.new_group_message"),
           description: `${senderName}: ${content}`,
@@ -195,33 +316,276 @@ export default function ChatRoom() {
       }
     };
 
+    const onReceiveNotification = (notification) => {
+      if (!notification) return;
+
+      const meta = notification.meta || notification.Meta || {};
+      const senderId = getMetaField(meta, "senderId");
+      const groupId = getMetaField(meta, "groupId", "chatGroupId");
+      const isMine = normalizeUserId(senderId) === currentUserKey;
+      const rawType = (notification.type || notification.Type || "info").toString().toLowerCase();
+      const conversationType =
+        rawType.includes("group") || groupId ? "group" : "direct";
+      const senderKey = senderId?.toString();
+      const groupKey = groupId?.toString();
+      const isActiveDirectConversation =
+        conversationType === "direct" && selectedDirectKey && senderKey === selectedDirectKey;
+      const isActiveGroupConversation =
+        conversationType === "group" && selectedGroupKey && groupKey === selectedGroupKey;
+
+      if (isMine) return;
+      if (isActiveDirectConversation || isActiveGroupConversation) return;
+
+      pushNotification({
+        title: notification.title || notification.Title || t("notifications.title"),
+        description: notification.description || notification.Description || "",
+        type: notification.type || notification.Type || "info",
+        meta: {
+          conversationType,
+          groupId: groupId?.toString(),
+          senderId: senderId?.toString(),
+          timestamp: notification.createdAt || notification.CreatedAt || new Date().toISOString(),
+        },
+      });
+    };
+
+    const clearDirectTypingTimeout = (userId) => {
+      const key = userId?.toString();
+      if (!key) return;
+      const timeoutId = typingTimeoutsRef.current[key];
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        delete typingTimeoutsRef.current[key];
+      }
+    };
+
+    const clearGroupTypingTimeout = (groupName, userId) => {
+      const groupKey = normalizeGroupName(groupName);
+      const userKey = userId?.toString();
+      if (!groupKey || !userKey) return;
+
+      const timeoutKey = `${groupKey}:${userKey}`;
+      const timeoutId = groupTypingTimeoutsRef.current[timeoutKey];
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        delete groupTypingTimeoutsRef.current[timeoutKey];
+      }
+    };
+
+    const onUserOnline = (userId) => {
+      const key = userId?.toString();
+      if (!key) return;
+      setOnlineUsers((prev) => ({ ...prev, [key]: true }));
+    };
+
+    const onUserOffline = (userId) => {
+      const key = userId?.toString();
+      if (!key) return;
+
+      setOnlineUsers((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+
+      setTypingUsers((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    };
+
+    const onUserTyping = (userId) => {
+      const key = userId?.toString();
+      if (!key || key === currentUserId?.toString()) return;
+
+      setTypingUsers((prev) => ({ ...prev, [key]: true }));
+      clearDirectTypingTimeout(key);
+      typingTimeoutsRef.current[key] = setTimeout(() => {
+        setTypingUsers((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+      }, 4000);
+    };
+
+    const onUserStoppedTyping = (userId) => {
+      const key = userId?.toString();
+      if (!key) return;
+
+      clearDirectTypingTimeout(key);
+      setTypingUsers((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    };
+
+    const onUserTypingInGroup = (userId, groupName) => {
+      const groupKey = normalizeGroupName(groupName);
+      const userKey = userId?.toString();
+      if (!groupKey || !userKey || userKey === currentUserId?.toString()) return;
+
+      setTypingUsersInGroup((prev) => {
+        const existing = prev[groupKey] || {};
+        return {
+          ...prev,
+          [groupKey]: {
+            ...existing,
+            [userKey]: true,
+          },
+        };
+      });
+
+      clearGroupTypingTimeout(groupKey, userKey);
+      groupTypingTimeoutsRef.current[`${groupKey}:${userKey}`] = setTimeout(() => {
+        setTypingUsersInGroup((prev) => {
+          const groupEntry = prev[groupKey] || {};
+          const nextGroupEntry = { ...groupEntry };
+          delete nextGroupEntry[userKey];
+
+          const next = { ...prev };
+          if (Object.keys(nextGroupEntry).length === 0) {
+            delete next[groupKey];
+          } else {
+            next[groupKey] = nextGroupEntry;
+          }
+
+          return next;
+        });
+      }, 4000);
+    };
+
+    const onUserStoppedTypingInGroup = (userId, groupName) => {
+      const groupKey = normalizeGroupName(groupName);
+      const userKey = userId?.toString();
+      if (!groupKey || !userKey) return;
+
+      clearGroupTypingTimeout(groupKey, userKey);
+      setTypingUsersInGroup((prev) => {
+        const groupEntry = prev[groupKey] || {};
+        const nextGroupEntry = { ...groupEntry };
+        delete nextGroupEntry[userKey];
+
+        const next = { ...prev };
+        if (Object.keys(nextGroupEntry).length === 0) {
+          delete next[groupKey];
+        } else {
+          next[groupKey] = nextGroupEntry;
+        }
+
+        return next;
+      });
+    };
+
+    const onMessagesRead = (...args) => {
+      const payload = args.find((arg) => arg && typeof arg === "object" && !Array.isArray(arg));
+      const readAt = getReadEventReadAt(args);
+      const relatedIds = [
+        payload?.readerId,
+        payload?.userId,
+        payload?.senderId,
+        payload?.receiverId,
+        ...args.filter((arg) => typeof arg === "string" && Number.isNaN(Date.parse(arg))),
+      ]
+        .filter(Boolean)
+        .map((value) => value.toString());
+
+      if (!selectedReceiverId || !relatedIds.includes(selectedReceiverId.toString())) return;
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.mine && !msg.chatGroupId
+            ? { ...msg, isRead: true, readAt: msg.readAt || readAt }
+            : msg
+        )
+      );
+    };
+
+    const onGroupMessagesRead = (...args) => {
+      const payload = args.find((arg) => arg && typeof arg === "object" && !Array.isArray(arg));
+      const readAt = getReadEventReadAt(args);
+      const relatedGroupIds = [
+        payload?.groupId,
+        payload?.chatGroupId,
+        ...args.filter((arg) => typeof arg === "number" || (typeof arg === "string" && /^\d+$/.test(arg))),
+      ]
+        .filter(Boolean)
+        .map((value) => value.toString());
+      const relatedGroupNames = [payload?.groupName, ...args.filter((arg) => typeof arg === "string")]
+        .filter(Boolean)
+        .map((value) => normalizeGroupName(value));
+
+      const matchesSelectedGroup =
+        (selectedGroupId && relatedGroupIds.includes(selectedGroupId.toString())) ||
+        (selectedGroup?.name && relatedGroupNames.includes(normalizeGroupName(selectedGroup.name)));
+
+      if (!matchesSelectedGroup) return;
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.mine && msg.chatGroupId?.toString() === selectedGroupId?.toString()
+            ? { ...msg, isRead: true, readAt: msg.readAt || readAt }
+            : msg
+        )
+      );
+    };
+
     hub.on("ReceivePrivateMessage", onReceivePrivate);
     hub.on("ReceiveGroupMessage", onReceiveGroup);
+    hub.on("ReceiveNotification", onReceiveNotification);
     hub.on("ReceiveMessage", onReceivePrivate);
+    hub.on("MessagesRead", onMessagesRead);
+    hub.on("GroupMessagesRead", onGroupMessagesRead);
+    hub.on("UserOnline", onUserOnline);
+    hub.on("UserOffline", onUserOffline);
+    hub.on("UserTyping", onUserTyping);
+    hub.on("UserStoppedTyping", onUserStoppedTyping);
+    hub.on("UserTypingInGroup", onUserTypingInGroup);
+    hub.on("UserStoppedTypingInGroup", onUserStoppedTypingInGroup);
 
     return () => {
       hub.off("ReceivePrivateMessage", onReceivePrivate);
       hub.off("ReceiveGroupMessage", onReceiveGroup);
+      hub.off("ReceiveNotification", onReceiveNotification);
       hub.off("ReceiveMessage", onReceivePrivate);
+      hub.off("MessagesRead", onMessagesRead);
+      hub.off("GroupMessagesRead", onGroupMessagesRead);
+      hub.off("UserOnline", onUserOnline);
+      hub.off("UserOffline", onUserOffline);
+      hub.off("UserTyping", onUserTyping);
+      hub.off("UserStoppedTyping", onUserStoppedTyping);
+      hub.off("UserTypingInGroup", onUserTypingInGroup);
+      hub.off("UserStoppedTypingInGroup", onUserStoppedTypingInGroup);
     };
-  }, [hub, currentUserId, pushNotification, t]);
+  }, [hub, currentUserId, pushNotification, t, selectedReceiverId, selectedGroupId, selectedGroup]);
+
+  useEffect(() => {
+    const typingTimeouts = typingTimeoutsRef.current;
+    const groupTypingTimeouts = groupTypingTimeoutsRef.current;
+
+    return () => {
+      Object.values(typingTimeouts).forEach((timeoutId) => clearTimeout(timeoutId));
+      Object.values(groupTypingTimeouts).forEach((timeoutId) => clearTimeout(timeoutId));
+    };
+  }, []);
 
   /* scroll to first unread in current conversation, fallback to bottom */
   const unreadInCurrentConversation = useMemo(() => {
     return notifications.filter((n) => {
       if (n.isRead) return false;
-      const notificationType = n.meta?.conversationType;
 
       if (selectedGroupId) {
         return (
-          (notificationType === "group" || n.meta?.groupId) &&
+          isGroupNotification(n) &&
           n.meta?.groupId?.toString() === selectedGroupId?.toString()
         );
       }
 
       if (selectedReceiverId) {
         return (
-          (notificationType === "direct" || n.meta?.senderId) &&
+          isDirectNotification(n) &&
           n.meta?.senderId?.toString() === selectedReceiverId?.toString()
         );
       }
@@ -264,7 +628,7 @@ export default function ChatRoom() {
   const unreadDirectBySender = useMemo(() => {
     const map = {};
     notifications
-      .filter((n) => !n.isRead)
+      .filter((n) => !n.isRead && isDirectNotification(n))
       .forEach((n) => {
         const senderId = n.meta?.senderId || n.senderId;
         if (!senderId) return;
@@ -282,7 +646,7 @@ export default function ChatRoom() {
   const unreadGroupById = useMemo(() => {
     const map = {};
     notifications
-      .filter((n) => !n.isRead)
+      .filter((n) => !n.isRead && isGroupNotification(n))
       .forEach((n) => {
         const groupId = n.meta?.groupId;
         if (!groupId) return;
@@ -297,15 +661,26 @@ export default function ChatRoom() {
     [unreadGroupById]
   );
 
+  const isRtl = i18n.dir() === "rtl";
+  const onlineBadgeOffset = useMemo(() => (isRtl ? [-2, 2] : [2, 2]), [isRtl]);
+  const headerOnlineBadgeOffset = useMemo(() => (isRtl ? [-2, 30] : [2, 30]), [isRtl]);
+
   const userMenuItems = useMemo(
     () =>
       users
         .filter((u) => u.id !== currentUserId)
         .map((u) => {
           const unreadCount = unreadDirectBySender[u.id?.toString()] || 0;
+          const userKey = u.id?.toString();
+          const isOnline = Boolean(onlineUsers[userKey]);
+          const isTyping = Boolean(typingUsers[userKey]);
           return {
             key: u.id.toString(),
-            icon: <UserOutlined />,
+            icon: (
+              <Badge dot={isOnline} color="#52c41a" offset={onlineBadgeOffset}>
+                <UserOutlined />
+              </Badge>
+            ),
             label: (
               <div
                 style={{
@@ -315,21 +690,66 @@ export default function ChatRoom() {
                   gap: 8,
                 }}
               >
-                <span
-                  style={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {u.email}
-                </span>
+                <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      minWidth: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {u.email}
+                    </span>
+                    <Tag
+                      bordered={false}
+                      style={{
+                        marginInlineStart: 0,
+                        marginInlineEnd: 0,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        paddingInline: 8,
+                        lineHeight: "18px",
+                        flexShrink: 0,
+                        color: isTyping
+                          ? themeToken.colorWarning
+                          : isOnline
+                          ? themeToken.colorSuccess
+                          : themeToken.colorTextDescription,
+                        background: isTyping
+                          ? themeToken.colorWarningBg
+                          : isOnline
+                          ? themeToken.colorSuccessBg
+                          : themeToken.colorFillTertiary,
+                      }}
+                    >
+                      {isTyping ? t("chat.typing") : isOnline ? t("chat.online") : t("chat.offline")}
+                    </Tag>
+                  </div>
+                </div>
                 {unreadCount > 0 && <Badge count={unreadCount} size="small" />}
               </div>
             ),
           };
         }),
-    [users, currentUserId, unreadDirectBySender]
+    [
+      users,
+      currentUserId,
+      unreadDirectBySender,
+      onlineUsers,
+      typingUsers,
+      t,
+      themeToken,
+      onlineBadgeOffset,
+    ]
   );
 
   const groupMenuItems = useMemo(
@@ -365,23 +785,32 @@ export default function ChatRoom() {
     [groups, unreadGroupById]
   );
 
-  const selectedUser = useMemo(
-    () => users.find((u) => u.id?.toString() === selectedReceiverId?.toString()),
-    [users, selectedReceiverId]
+  const selectedUserIdAsString = selectedReceiverId?.toString();
+  const selectedGroupNameKey = normalizeGroupName(selectedGroup?.name);
+  const isSelectedUserTyping = Boolean(
+    selectedUserIdAsString && typingUsers[selectedUserIdAsString]
   );
-
-  const selectedGroup = useMemo(
-    () => groups.find((g) => g.id?.toString() === selectedGroupId?.toString()),
-    [groups, selectedGroupId]
-  );
+  const selectedGroupTypingUsers = useMemo(() => {
+    if (!selectedGroupNameKey) return [];
+    const groupTyping = typingUsersInGroup[selectedGroupNameKey] || {};
+    return Object.keys(groupTyping)
+      .map((typingUserId) => users.find((u) => u.id?.toString() === typingUserId)?.email)
+      .filter(Boolean);
+  }, [selectedGroupNameKey, typingUsersInGroup, users]);
 
   const conversationTitle = selectedGroup
     ? selectedGroup.name
     : selectedUser?.email || t("chat.direct_messages");
 
   const conversationSubtitle = selectedGroup
-    ? t("chat.group_chat")
-    : t("chat.direct_chat");
+    ? selectedGroupTypingUsers.length > 0
+      ? `${selectedGroupTypingUsers.join(", ")} ${t("chat.typing")}`
+      : t("chat.group_chat")
+    : isSelectedUserTyping
+    ? t("chat.typing")
+    : onlineUsers[selectedUserIdAsString]
+    ? t("chat.online")
+    : t("chat.offline");
 
   /* ------------------------------------------------------------------ */
   /* 📡 initial data */
@@ -390,6 +819,14 @@ export default function ChatRoom() {
       try {
         setUsers(await getAllUsers());
         setGroups(await getGroupsUser());
+
+        const onlineIds = await getOnlineUsers();
+        const map = (onlineIds || []).reduce((acc, id) => {
+          const key = id?.toString();
+          if (key) acc[key] = true;
+          return acc;
+        }, {});
+        setOnlineUsers(map);
       } catch (e) {
         console.error("load error:", e);
       }
@@ -404,7 +841,7 @@ export default function ChatRoom() {
       try {
         setMessagesLoading(true);
         const data = await getPrivateMessages(selectedReceiverId);
-        setMessages(mapMessages(data, currentUserId));
+        setMessages(mapMessages(extractMessageRows(data), currentUserId));
       } catch (e) {
         console.error("direct msgs error:", e);
       } finally {
@@ -412,6 +849,32 @@ export default function ChatRoom() {
       }
     })();
   }, [selectedReceiverId, currentUserId]);
+
+  useEffect(() => {
+    if (!selectedReceiverId || messagesLoading) return;
+
+    const hasUnreadIncoming = messages.some(
+      (msg) => !msg.mine && !msg.chatGroupId && !msg.isRead
+    );
+    if (!hasUnreadIncoming) return;
+
+    (async () => {
+      try {
+        await markPrivateMessagesAsRead(selectedReceiverId);
+        const readAt = new Date().toISOString();
+        setMessages((prev) =>
+          prev.map((msg) =>
+            !msg.mine && !msg.chatGroupId
+              ? { ...msg, isRead: true, readAt: msg.readAt || readAt }
+              : msg
+          )
+        );
+        await markConversationAsRead({ senderId: selectedReceiverId });
+      } catch (e) {
+        console.error("mark private read error:", e);
+      }
+    })();
+  }, [selectedReceiverId, messages, messagesLoading, markConversationAsRead]);
 
   /* ------------------------------------------------------------------ */
   /* 📡 join group + load history */
@@ -426,7 +889,7 @@ export default function ChatRoom() {
       try {
         setMessagesLoading(true);
         const rows = await getMassegesGroups(groupId);
-        setMessages(mapMessages(rows, currentUserId));
+        setMessages(mapMessages(extractMessageRows(rows), currentUserId));
       } catch (e) {
         console.error("group msgs error:", e);
       } finally {
@@ -448,6 +911,32 @@ export default function ChatRoom() {
     }
   }, [routeUserId, routeGroupId, hub, joinGroup]);
 
+  useEffect(() => {
+    if (!selectedGroupId || messagesLoading) return;
+
+    const hasUnreadIncoming = messages.some(
+      (msg) => !msg.mine && msg.chatGroupId?.toString() === selectedGroupId?.toString() && !msg.isRead
+    );
+    if (!hasUnreadIncoming) return;
+
+    (async () => {
+      try {
+        await markGroupMessagesAsRead(selectedGroupId);
+        const readAt = new Date().toISOString();
+        setMessages((prev) =>
+          prev.map((msg) =>
+            !msg.mine && msg.chatGroupId?.toString() === selectedGroupId?.toString()
+              ? { ...msg, isRead: true, readAt: msg.readAt || readAt }
+              : msg
+          )
+        );
+        await markConversationAsRead({ groupId: selectedGroupId });
+      } catch (e) {
+        console.error("mark group read error:", e);
+      }
+    })();
+  }, [selectedGroupId, messages, messagesLoading, markConversationAsRead]);
+
   /* ------------------------------------------------------------------ */
   /* 📨 send */
   const sendMessage = useCallback(async () => {
@@ -459,10 +948,84 @@ export default function ChatRoom() {
         selectedGroupId ? Number(selectedGroupId) : null
       );
       setMessage("");
+
+      if (hub?.state === "Connected") {
+        if (selectedGroupId) {
+          await hub.invoke("StopTypingInGroup", selectedGroup?.name);
+        } else if (selectedReceiverId) {
+          await hub.invoke("StopTyping", selectedReceiverId);
+        }
+      }
     } catch (e) {
       console.error("send error:", e);
     }
-  }, [message, selectedGroupId, selectedReceiverId]);
+  }, [
+    message,
+    selectedGroupId,
+    selectedReceiverId,
+    hub,
+    selectedGroup,
+  ]);
+
+  useEffect(() => {
+    if (!hub || hub.state !== "Connected") return;
+
+    const notifyTypingState = async () => {
+      const hasText = Boolean(message.trim());
+
+      try {
+        if (selectedGroupId) {
+          await hub.invoke(
+            hasText ? "TypingInGroup" : "StopTypingInGroup",
+            selectedGroup?.name
+          );
+          return;
+        }
+
+        if (selectedReceiverId) {
+          await hub.invoke(hasText ? "Typing" : "StopTyping", selectedReceiverId);
+        }
+      } catch {
+        // no-op if backend does not expose matching invoke methods
+      }
+    };
+
+    notifyTypingState();
+  }, [hub, message, selectedGroupId, selectedReceiverId, selectedGroup]);
+
+  /* ------------------------------------------------------------------ */
+  /* 🔍 search */
+  const handleSearch = useCallback(async (q = searchQuery) => {
+    const trimmed = q.trim();
+    if (!trimmed) {
+      setSearchResults(null);
+      return;
+    }
+
+    try {
+      setSearchLoading(true);
+      const payload = await searchMessages(trimmed);
+      const rows = extractMessageRows(payload);
+      setSearchResults(rows);
+    } catch (e) {
+      console.error("search error:", e);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [searchQuery]);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSearchResults(null);
+  }, []);
+
+  useEffect(() => {
+    if (searchOpen) {
+      setTimeout(() => searchInputRef.current?.focus(), 80);
+    }
+  }, [searchOpen]);
 
   /* ------------------------------------------------------------------ */
   /* ➕ create group */
@@ -602,14 +1165,20 @@ export default function ChatRoom() {
                     background: themeToken.colorBgContainer,
                   }}
                 >
-                  <Avatar
-                    icon={selectedGroup ? <TeamOutlined /> : <UserOutlined />}
-                    style={{
-                      background: selectedGroup
-                        ? "linear-gradient(140deg, #722ed1 0%, #9254de 100%)"
-                        : "linear-gradient(140deg, #1677ff 0%, #69b1ff 100%)",
-                    }}
-                  />
+                  <Badge
+                    dot={!selectedGroup && Boolean(onlineUsers[selectedUserIdAsString])}
+                    color="#52c41a"
+                    offset={headerOnlineBadgeOffset}
+                  >
+                    <Avatar
+                      icon={selectedGroup ? <TeamOutlined /> : <UserOutlined />}
+                      style={{
+                        background: selectedGroup
+                          ? "linear-gradient(140deg, #722ed1 0%, #9254de 100%)"
+                          : "linear-gradient(140deg, #1677ff 0%, #69b1ff 100%)",
+                      }}
+                    />
+                  </Badge>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <Typography.Text strong ellipsis style={{ display: "block" }}>
                       {conversationTitle}
@@ -618,7 +1187,53 @@ export default function ChatRoom() {
                       {conversationSubtitle}
                     </Typography.Text>
                   </div>
+
+                  {/* Search toggle */}
+                  <Tooltip title={t("chat.search_messages")}>
+                    <Button
+                      type="text"
+                      shape="circle"
+                      icon={searchOpen ? <CloseOutlined /> : <SearchOutlined />}
+                      onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
+                    />
+                  </Tooltip>
                 </div>
+
+                {/* ── Search bar ── */}
+                {searchOpen && (
+                  <div
+                    style={{
+                      padding: "8px 20px",
+                      borderBottom: `1px solid ${themeToken.colorBorderSecondary}`,
+                      background: themeToken.colorBgContainer,
+                      display: "flex",
+                      gap: 8,
+                    }}
+                  >
+                    <Input
+                      ref={searchInputRef}
+                      prefix={<SearchOutlined style={{ opacity: 0.45 }} />}
+                      placeholder={t("chat.search_placeholder")}
+                      value={searchQuery}
+                      allowClear
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        if (!e.target.value.trim()) setSearchResults(null);
+                      }}
+                      onPressEnter={() => handleSearch()}
+                      style={{ borderRadius: 20 }}
+                    />
+                    <Button
+                      type="primary"
+                      loading={searchLoading}
+                      icon={<SearchOutlined />}
+                      onClick={() => handleSearch()}
+                      disabled={!searchQuery.trim()}
+                    >
+                      {t("chat.search_btn")}
+                    </Button>
+                  </div>
+                )}
 
                 {/* messages list */}
                 <div
@@ -630,7 +1245,128 @@ export default function ChatRoom() {
                       "radial-gradient(circle at 20% 0%, rgba(22,119,255,0.07), transparent 40%)",
                   }}
                 >
-                  {messagesLoading ? (
+                  {/* ── Search results ── */}
+                  {searchOpen && searchResults !== null ? (
+                    searchLoading ? (
+                      <div style={{ textAlign: "center", paddingTop: 40 }}>
+                        <Spin size="large" />
+                      </div>
+                    ) : searchResults.length === 0 ? (
+                      <Empty
+                        description={t("chat.search_no_results")}
+                        style={{ marginTop: 60 }}
+                      />
+                    ) : (
+                      <>
+                        <Typography.Text
+                          type="secondary"
+                          style={{ display: "block", marginBottom: 12, fontSize: 12 }}
+                        >
+                          {searchResults.length} {t("chat.search_results_count")}
+                        </Typography.Text>
+                        <List
+                          dataSource={searchResults}
+                          renderItem={(msg) => {
+                            const isMe = msg.senderId === currentUserId;
+                            const time = new Date(msg.timestamp).toLocaleTimeString("ar-EG", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            });
+                            const content = msg.content || "";
+                            const idx = content.toLowerCase().indexOf(searchQuery.toLowerCase());
+                            const highlighted =
+                              idx >= 0 ? (
+                                <>
+                                  {content.slice(0, idx)}
+                                  <mark
+                                    style={{
+                                      background: themeToken.colorWarning,
+                                      color: themeToken.colorBgContainer,
+                                      borderRadius: 3,
+                                      padding: "0 2px",
+                                    }}
+                                  >
+                                    {content.slice(idx, idx + searchQuery.length)}
+                                  </mark>
+                                  {content.slice(idx + searchQuery.length)}
+                                </>
+                              ) : (
+                                content
+                              );
+
+                            return (
+                              <List.Item
+                                style={{
+                                  display: "flex",
+                                  justifyContent: isMe ? "flex-end" : "flex-start",
+                                  border: "none",
+                                  padding: "4px 0",
+                                }}
+                              >
+                                {!isMe && (
+                                  <Avatar
+                                    icon={<UserOutlined />}
+                                    size={32}
+                                    style={{ marginRight: 8, flexShrink: 0, alignSelf: "flex-end" }}
+                                  />
+                                )}
+                                <div
+                                  style={{
+                                    maxWidth: "65%",
+                                    padding: "10px 14px",
+                                    borderRadius: isMe
+                                      ? "18px 18px 4px 18px"
+                                      : "18px 18px 18px 4px",
+                                    background: isMe
+                                      ? themeToken.colorPrimary
+                                      : themeToken.colorBgElevated,
+                                    boxShadow: "0 1px 2px rgba(0,0,0,0.12)",
+                                    color: isMe ? "#fff" : themeToken.colorText,
+                                  }}
+                                >
+                                  {!isMe && (
+                                    <div
+                                      style={{
+                                        fontWeight: 600,
+                                        fontSize: 12,
+                                        marginBottom: 3,
+                                        opacity: 0.75,
+                                      }}
+                                    >
+                                      {msg.senderName}
+                                    </div>
+                                  )}
+                                  <div style={{ lineHeight: 1.5 }}>{highlighted}</div>
+                                  <div
+                                    style={{
+                                      fontSize: 11,
+                                      textAlign: "right",
+                                      marginTop: 4,
+                                      opacity: 0.6,
+                                    }}
+                                  >
+                                    {time}
+                                  </div>
+                                </div>
+                                {isMe && (
+                                  <Avatar
+                                    icon={<UserOutlined />}
+                                    size={32}
+                                    style={{
+                                      marginLeft: 8,
+                                      flexShrink: 0,
+                                      alignSelf: "flex-end",
+                                      background: themeToken.colorPrimary,
+                                    }}
+                                  />
+                                )}
+                              </List.Item>
+                            );
+                          }}
+                        />
+                      </>
+                    )
+                  ) : messagesLoading ? (
                     <div style={{ textAlign: "center", paddingTop: 40 }}>
                       <Spin size="large" />
                     </div>
@@ -650,6 +1386,7 @@ export default function ChatRoom() {
                         const bubbleColor = isMe
                           ? "#fff"
                           : themeToken.colorText;
+                        const messageIsRead = Boolean(msg.isRead || msg.readAt);
                         const time = new Date(msg.timestamp).toLocaleTimeString(
                           "ar-EG",
                           { hour: "2-digit", minute: "2-digit" }
@@ -703,12 +1440,23 @@ export default function ChatRoom() {
                               <div
                                 style={{
                                   fontSize: 11,
-                                  textAlign: "right",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "flex-end",
+                                  gap: 4,
                                   marginTop: 4,
                                   opacity: 0.6,
                                   color: bubbleColor,
                                 }}
                               >
+                                {isMe && (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: 0 }}>
+                                    <CheckOutlined style={{ fontSize: 10 }} />
+                                    {messageIsRead && (
+                                      <CheckOutlined style={{ fontSize: 10, marginInlineStart: -4 }} />
+                                    )}
+                                  </span>
+                                )}
                                 {time}
                               </div>
                             </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Card, List, Typography, Spin, Alert, Avatar, Tag } from "antd";
+import { Card, List, Typography, Spin, Alert, Avatar, Tag, Space, Button } from "antd";
 import { UserOutlined, MessageOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -34,13 +34,36 @@ export default function UsersPage() {
   }, [t]);
 
   return (
-    <Card style={{ marginTop: 16 }}>
-      <Title level={3} style={{ marginBottom: 20 }}>
-        {t("users.title")}{" "}
-        <Tag color="blue" style={{ fontSize: 12, verticalAlign: "middle" }}>
-          {users.length}
-        </Tag>
-      </Title>
+    <Card
+      style={{
+        marginTop: 8,
+        borderRadius: 24,
+        border: "1px solid rgba(22,119,255,0.08)",
+        boxShadow: "0 20px 50px rgba(15,30,54,0.08)",
+      }}
+      styles={{ body: { padding: 24 } }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <Tag color="blue" style={{ marginBottom: 10, borderRadius: 999, paddingInline: 10 }}>
+            {users.length}
+          </Tag>
+          <Title level={3} style={{ margin: 0 }}>
+            {t("users.title")}
+          </Title>
+          <Typography.Paragraph type="secondary" style={{ margin: "8px 0 0" }}>
+            Start a direct conversation with any member from the directory.
+          </Typography.Paragraph>
+        </div>
+      </div>
       {loading && (
         <div style={{ textAlign: "center", padding: 40 }}>
           <Spin size="large" />
@@ -56,23 +79,22 @@ export default function UsersPage() {
             <List.Item
               style={{
                 cursor: "pointer",
-                padding: "12px 16px",
-                borderRadius: 8,
-                transition: "background 0.15s",
-                background: hoveredId === user.id ? "rgba(24,144,255,0.07)" : "transparent",
+                padding: "14px 18px",
+                borderRadius: 18,
+                transition: "transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease",
+                background: hoveredId === user.id ? "rgba(24,144,255,0.08)" : "rgba(255,255,255,0.56)",
+                boxShadow: hoveredId === user.id ? "0 12px 30px rgba(22,119,255,0.10)" : "none",
+                transform: hoveredId === user.id ? "translateY(-1px)" : "none",
+                marginBottom: 10,
               }}
               onMouseEnter={() => setHoveredId(user.id)}
               onMouseLeave={() => setHoveredId(null)}
               onClick={() => navigate(`/chat/user/${user.id}`)}
               extra={
                 hoveredId === user.id && (
-                  <Tag
-                    icon={<MessageOutlined />}
-                    color="blue"
-                    style={{ cursor: "pointer" }}
-                  >
+                  <Button type="link" icon={<MessageOutlined />} style={{ paddingInline: 0 }}>
                     {t("users.message")}
-                  </Tag>
+                  </Button>
                 )
               }
             >

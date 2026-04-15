@@ -114,6 +114,13 @@ export const useThemeLocale = () => {
     initializeThemeAndLocale();
   }, [i18n]);
 
+  useEffect(() => {
+    if (!localization) return;
+
+    document.documentElement.lang = localization;
+    document.documentElement.dir = localization === 'ar' ? 'rtl' : 'ltr';
+  }, [localization]);
+
   return {
     darkMode,
     localization,

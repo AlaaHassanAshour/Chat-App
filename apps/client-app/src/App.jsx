@@ -23,6 +23,10 @@ function App() {
     if (!isInitialized) return null;
 
     const antdLocale = localization === "en" ? en_US : ar_EG;
+    const appFontFamily =
+        localization === "ar"
+            ? '"Cairo", "Segoe UI", sans-serif'
+            : '"Segoe UI Variable", "Segoe UI", "Inter", sans-serif';
 
     document.title = APP_CONFIG.name;
 
@@ -33,6 +37,9 @@ function App() {
                 algorithm: darkMode
                     ? theme.darkAlgorithm
                     : theme.defaultAlgorithm,
+                token: {
+                    fontFamily: appFontFamily,
+                },
             }}
             direction={localization === "en" ? "ltr" : "rtl"}
         >

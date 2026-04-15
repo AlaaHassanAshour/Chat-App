@@ -92,14 +92,30 @@ export default function GroupsPage() {
   };
 
   return (
-    <Card style={{ marginTop: 16 }}>
+    <Card
+      style={{
+        marginTop: 8,
+        borderRadius: 24,
+        border: "1px solid rgba(114,46,209,0.10)",
+        boxShadow: "0 20px 50px rgba(15,30,54,0.08)",
+      }}
+      styles={{ body: { padding: 24 } }}
+    >
       {contextHolder}
       <Space
         style={{ width: "100%", justifyContent: "space-between", marginBottom: 12 }}
       >
-        <Title level={3} style={{ margin: 0 }}>
-          {t("groups.title")}
-        </Title>
+        <div>
+          <Tag color="purple" style={{ marginBottom: 10, borderRadius: 999, paddingInline: 10 }}>
+            {groups.length}
+          </Tag>
+          <Title level={3} style={{ margin: 0 }}>
+            {t("groups.title")}
+          </Title>
+          <Typography.Paragraph type="secondary" style={{ margin: "8px 0 0" }}>
+            Organize people into rooms for faster collaboration and discussion.
+          </Typography.Paragraph>
+        </div>
         <Button
           type="primary"
           icon={<PlusOutlined />}
@@ -119,9 +135,12 @@ export default function GroupsPage() {
             <List.Item
               style={{
                 cursor: "pointer",
-                padding: "12px 16px",
-                borderRadius: 8,
-                transition: "background 0.15s",
+                padding: "14px 18px",
+                borderRadius: 18,
+                transition: "transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease",
+                background: "rgba(255,255,255,0.56)",
+                boxShadow: "0 8px 24px rgba(114,46,209,0.06)",
+                marginBottom: 10,
               }}
               className="group-list-item"
               onClick={() => navigate(`/chat/group/${group.id}`)}

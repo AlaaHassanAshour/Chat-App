@@ -23,3 +23,7 @@ bld/
 ## OS
 [Tt]humbs.db
 *.DS_Store
+
+## Logs & temp
+**/logs/
+*.tmp

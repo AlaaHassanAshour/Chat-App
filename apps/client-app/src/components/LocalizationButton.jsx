@@ -14,7 +14,7 @@ export default function LocalizationButton() {
   return (
     <Tooltip placement="bottom" title={"English / عربي"}>
       <TranslationOutlined
-        style={{ color: "white", fontSize: "20px", display: "block" }}
+        style={{ color: "currentColor", fontSize: "20px", display: "block" }}
         onClick={localizationChange}
       />
     </Tooltip>

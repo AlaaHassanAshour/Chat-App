@@ -7,10 +7,11 @@ import { useTranslation } from "react-i18next";
 import { useThemeMode } from "../contexts/ThemeMode";
 import Auth from "../contexts/Auth";
 import { notification } from "../utils/InitAntStaticApi";
-import { AUTH_CONFIG, APP_CONFIG } from "../config/env";
+import { APP_CONFIG } from "../config/env";
 import { login } from "../services/api";
+import { normalizeAuthResponse, setAuthSession } from "../utils/authSession";
 
-const { Title } = Typography;
+const { Title, Paragraph, Text } = Typography;
 
 /**
  * Login page component that handles user authentication
@@ -30,11 +31,13 @@ const LoginPage = () => {
       setLoading(true);
       const response = await login(formData.email, formData.password);
       console.log("Login response:", response);
-      localStorage.setItem(AUTH_CONFIG.tokenKey, response.token);
+      const session = normalizeAuthResponse(response);
+      setAuthSession(session);
       setAuth(
         response.userInfo || {
           email: formData.email,
-          accessToken: response.token,
+          accessToken: session.accessToken,
+          refreshToken: session.refreshToken,
         }
       );
       notification.success({
@@ -66,7 +69,10 @@ const LoginPage = () => {
     <Row
       style={{
         height: "100%",
-        padding: "20px",
+        minHeight: "calc(100vh - 64px)",
+        padding: "24px",
+        background:
+          "radial-gradient(circle at top left, rgba(22,119,255,0.16), transparent 30%), radial-gradient(circle at bottom right, rgba(114,46,209,0.16), transparent 28%)",
       }}
       align="middle"
       justify="center"
@@ -74,25 +80,56 @@ const LoginPage = () => {
       <Row
         style={{
           width: "100%",
-          maxWidth: "480px",
-          padding: "40px",
-          borderRadius: "12px",
+          maxWidth: "520px",
+          padding: "42px 40px 34px",
+          borderRadius: "28px",
           boxShadow: darkMode
-            ? `0 4px 24px rgba(0,0,0,0.4)`
-            : "0 4px 24px rgba(0,0,0,0.10)",
+            ? `0 20px 50px rgba(0,0,0,0.38)`
+            : "0 24px 60px rgba(15, 30, 54, 0.14)",
           background: token.colorBgElevated,
+          border: `1px solid ${token.colorBorderSecondary}`,
+          position: "relative",
+          overflow: "hidden",
         }}
       >
+        <div
+          style={{
+            position: "absolute",
+            insetInlineStart: -40,
+            top: -56,
+            width: 150,
+            height: 150,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(22,119,255,0.22), transparent 70%)",
+            pointerEvents: "none",
+          }}
+        />
         <Col span={24}>
-          <Title
-            level={2}
+          <Text
             style={{
-              textAlign: "center",
-              marginBottom: "30px",
+              display: "inline-block",
+              marginBottom: 10,
+              padding: "4px 10px",
+              borderRadius: 999,
+              background: token.colorPrimaryBg,
+              color: token.colorPrimary,
+              fontWeight: 700,
+              letterSpacing: 0.3,
             }}
           >
             {APP_CONFIG.name}
+          </Text>
+          <Title
+            level={2}
+            style={{
+              marginBottom: 8,
+            }}
+          >
+            {t("auth.login")}
           </Title>
+          <Paragraph type="secondary" style={{ marginBottom: 28, fontSize: 15 }}>
+            {t("auth.login_success_desc")}
+          </Paragraph>
         </Col>
         <Col span={24}>
           <Form
