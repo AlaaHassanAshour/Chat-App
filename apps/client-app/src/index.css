@@ -1,13 +1,96 @@
+@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap");
+
+:root {
+  font-family: "Segoe UI Variable", "Segoe UI", "Inter", sans-serif;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: "Segoe UI Variable", "Segoe UI", "Inter", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(22, 119, 255, 0.12), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(114, 46, 209, 0.1), transparent 24%),
+    linear-gradient(180deg, #f5f8fc 0%, #eef3f9 100%);
+  color: #162033;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+html[lang="ar"],
+html[lang="ar"] body,
+html[lang="ar"] #root,
+html[lang="ar"] button,
+html[lang="ar"] input,
+html[lang="ar"] textarea,
+html[lang="ar"] select,
+html[lang="ar"] .ant-typography,
+html[lang="ar"] .ant-btn,
+html[lang="ar"] .ant-input,
+html[lang="ar"] .ant-menu,
+html[lang="ar"] .ant-card,
+html[lang="ar"] .ant-tag,
+html[lang="ar"] .ant-modal,
+html[lang="ar"] .ant-select,
+html[lang="ar"] .ant-list,
+html[lang="ar"] body *:not(code):not(pre) {
+  font-family: "Cairo", "Segoe UI", sans-serif;
+}
+
+html[lang="ar"] h1,
+html[lang="ar"] h2,
+html[lang="ar"] h3,
+html[lang="ar"] h4,
+html[lang="ar"] h5,
+html[lang="ar"] h6,
+html[lang="ar"] .ant-typography,
+html[lang="ar"] .ant-card-head-title {
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+html[lang="ar"] .ant-btn,
+html[lang="ar"] .ant-tag,
+html[lang="ar"] .ant-menu-title-content,
+html[lang="ar"] .ant-input,
+html[lang="ar"] .ant-input-affix-wrapper input {
+  font-weight: 600;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: rgba(22, 119, 255, 0.18);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(22, 119, 255, 0.22);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
 }

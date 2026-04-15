@@ -13,8 +13,8 @@ import ChatRoom from "../components/ChatRoom";
 
 import UnprotectedRouteLayout from "../layouts/UnprotectedRoute";
 import ProtectedRoute from "../layouts/ProtectedRoute";
-import { apiCommon } from "../utils/axiosInstance";
 import Auth from "../contexts/Auth";
+import { clearAuthSession, getAccessToken, getRefreshToken } from "../utils/authSession";
 
 const { Content } = Layout;
 
@@ -24,10 +24,12 @@ const AppRouter = () => {
   useEffect(() => {
     async function isAuth() {
       try {
-        const Authorization = localStorage.getItem("accessToken");
-        if (Authorization) {
+        const accessToken = getAccessToken();
+        const refreshToken = getRefreshToken();
+        if (accessToken) {
           const userData = {
-            accessToken: Authorization,
+            accessToken,
+            refreshToken,
             username : "Admin", // Placeholder for username, replace with actual logic if needed
           }
           // const userData = await apiCommon.get("/User/user-info");
@@ -37,7 +39,7 @@ const AppRouter = () => {
           setAuth(false);
         }
       } catch {
-        localStorage.removeItem("accessToken");
+        clearAuthSession();
         setAuth(false);
       }
     }

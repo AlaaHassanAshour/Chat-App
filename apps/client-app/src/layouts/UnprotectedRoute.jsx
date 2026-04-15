@@ -17,7 +17,7 @@ export default function UnprotectedRoute({ children }) {
           <Col>
             <DarkModeSwitch />
           </Col>
-          <Col style={{ display: "flex" }}>
+          <Col style={{ display: "flex", color: "white" }}>
             <LocalizationButton />
           </Col>
         </Row>

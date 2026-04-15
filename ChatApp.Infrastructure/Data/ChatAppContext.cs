@@ -11,6 +11,8 @@ public class ChatAppContext : IdentityDbContext<AppUser>
     public DbSet<Message> Messages { get; set; }
     public DbSet<ChatGroup> ChatGroups { get; set; }
     public DbSet<ChatGroupUser> ChatGroupUsers { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -46,5 +48,17 @@ public class ChatAppContext : IdentityDbContext<AppUser>
             .WithMany(u => u.ReceivedMessages)
             .HasForeignKey(m => m.ReceiverId)
             .OnDelete(DeleteBehavior.NoAction);
+
+        builder.Entity<Notification>()
+            .HasOne(n => n.User)
+            .WithMany(u => u.Notifications)
+            .HasForeignKey(n => n.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<RefreshToken>()
+            .HasOne(rt => rt.User)
+            .WithMany(u => u.RefreshTokens)
+            .HasForeignKey(rt => rt.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

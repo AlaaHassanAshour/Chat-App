@@ -1,5 +1,5 @@
-import { AUTH_CONFIG } from "@config/env";
 import { notification } from "./InitAntStaticApi";
+import { clearAuthSession } from "./authSession";
 
 /**
  * Error codes and their corresponding messages
@@ -79,7 +79,7 @@ export const handleApiError = (
     // Handle specific error codes
     switch (errorResponse.status) {
         case ERROR_CODES.UNAUTHORIZED:
-            localStorage.removeItem(AUTH_CONFIG.tokenKey);
+            clearAuthSession();
             // Only redirect if we're not already on the login page
             if (!window.location.pathname.includes("/login")) {
                 window.location.href = "/login";

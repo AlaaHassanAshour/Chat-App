@@ -1,3 +1,102 @@
 {
-    "login": "Login"
+  "auth": {
+    "login": "Login",
+    "login_success": "Login Successful",
+    "login_success_desc": "You have been successfully logged in.",
+    "register": "Register",
+    "register_title": "Create Account",
+    "register_success": "Registration Successful",
+    "register_success_desc": "Your account has been created. Please login.",
+    "email": "Email",
+    "email_required": "The Email field is required",
+    "email_invalid": "Please enter a valid email address",
+    "email_placeholder": "Enter your Email",
+    "password": "Password",
+    "password_required": "The Password field is required",
+    "password_min": "Password must be at least 6 characters",
+    "password_placeholder": "Enter your Password",
+    "confirm_password": "Confirm Password",
+    "confirm_password_required": "Please confirm your password",
+    "confirm_password_mismatch": "Passwords do not match",
+    "confirm_password_placeholder": "Confirm your Password",
+    "mobile": "Mobile",
+    "mobile_required": "The Mobile field is required",
+    "mobile_placeholder": "Enter your Mobile",
+    "no_account": "Don't have an account? Create one",
+    "have_account": "Already have an account? Login"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "create": "Create",
+    "open": "Open",
+    "validation_error": "Validation Error",
+    "form_error": "Please check the form fields and try again."
+  },
+  "chat": {
+    "groups": "GROUPS",
+    "create_group": "Create Group",
+    "create_group_title": "Create New Group",
+    "direct_messages": "DIRECT MESSAGES",
+    "group_chat": "Group chat",
+    "direct_chat": "Direct chat",
+    "online": "Online",
+    "offline": "Offline",
+    "typing": "is typing...",
+    "search_messages": "Search messages",
+    "search_placeholder": "Search in messages...",
+    "search_btn": "Search",
+    "search_no_results": "No messages found",
+    "search_results_count": "results",
+    "select_conversation": "Select a user or group to start a conversation",
+    "no_messages": "No messages yet",
+    "write_message": "Write a message...",
+    "group_name_placeholder": "Group name",
+    "select_members": "Select members:"
+  },
+  "users": {
+    "title": "Users",
+    "not_found": "No users found",
+    "load_error": "Failed to load users",
+    "message": "Message"
+  },
+  "groups": {
+    "title": "Groups",
+    "not_found": "No groups found",
+    "load_error": "Failed to load groups",
+    "create_success": "Group created successfully",
+    "create_error": "Failed to create group",
+    "name_required": "Group name is required",
+    "member_required": "Select at least one member",
+    "open": "Open",
+    "create_group": "Create Group",
+    "members": "members"
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Settings page is ready."
+  },
+  "layout": {
+    "chat_room": "Chat Room",
+    "users": "Users",
+    "groups": "Groups",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "mark_all": "Mark all",
+    "refresh": "Refresh",
+    "clear": "Clear",
+    "search": "Search notifications...",
+    "filter_all": "All",
+    "filter_unread": "Unread",
+    "filter_direct": "Direct",
+    "filter_groups": "Groups",
+    "section_today": "Today",
+    "section_yesterday": "Yesterday",
+    "section_older": "Older",
+    "empty": "No notifications yet",
+    "new_message": "New message",
+    "new_group_message": "New group message"
+  }
 }

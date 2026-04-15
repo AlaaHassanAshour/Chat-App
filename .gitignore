@@ -10,21 +10,20 @@
 [Rr]elease/
 x64/
 x86/
+build/
+bld/
 [Bb]in/
 [Oo]bj/
-[Ll]og/
-[Ll]ogs/
 
 ## NuGet
-**/[Pp]ackages/*
-!**/[Pp]ackages/build/
+**/packages/*
 *.nupkg
-**/packages/repositories.config
+**/[Pp]ackages/build/
 
-## OS files
+## OS
 [Tt]humbs.db
 *.DS_Store
 
-## User-specific files
-*.rsuser
-*.userprefs
+## Logs & temp
+**/logs/
+*.tmp

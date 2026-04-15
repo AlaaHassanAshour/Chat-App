@@ -15,7 +15,8 @@ export const API_CONFIG = {
  * Authentication Configuration
  */
 export const AUTH_CONFIG = {
-  tokenKey: import.meta.env.VITE_AUTH_TOKEN_KEY,
+  tokenKey: import.meta.env.VITE_AUTH_TOKEN_KEY || "accessToken",
+  refreshTokenKey: import.meta.env.VITE_AUTH_REFRESH_TOKEN_KEY || "refreshToken",
 };
 
 /**
