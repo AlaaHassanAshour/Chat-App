@@ -110,6 +110,7 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddSingleton<IUserIdProvider, NameUserIdProvider>();
 builder.Services.AddSingleton<UserConnectionManager>();
+builder.Services.AddScoped<IMessageRealtimeNotifier, MessageRealtimeNotifier>();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -133,8 +134,13 @@ builder.Services.AddApiVersioning(options =>
     options.SubstituteApiVersionInUrl = true;
 });
 builder.Services.AddScoped<IJwtService, JwtService>();
-builder.Services.AddScoped<IMessageService, MessageService>();
-builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IMessageService, ChatApp.Application.Services.MessageService>();
+builder.Services.AddScoped<IMessageRepository, ChatApp.Infrastructure.Repositories.MessageRepository>();
+builder.Services.AddScoped<INotificationRepository, ChatApp.Infrastructure.Repositories.NotificationRepository>();
+builder.Services.AddScoped<IUserRepository, ChatApp.Infrastructure.Repositories.UserRepository>();
+builder.Services.AddScoped<IChatGroupRepository, ChatApp.Infrastructure.Repositories.ChatGroupRepository>();
+builder.Services.AddScoped<IChatGroupUserRepository, ChatApp.Infrastructure.Repositories.ChatGroupUserRepository>();
+builder.Services.AddScoped<INotificationService, ChatApp.Application.Services.NotificationService>();
 
 builder.Services.AddRateLimiter(options =>
 {

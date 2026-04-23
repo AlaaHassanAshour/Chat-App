@@ -1,10 +1,9 @@
 using ChatApp.Application.DTOs;
 using ChatApp.Application.Interfaces;
-using ChatApp.API.Hubs;
+using ChatApp.API.Services;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
 
 namespace ChatApp.API.Controllers;
@@ -17,67 +16,27 @@ namespace ChatApp.API.Controllers;
 public class MessageController : ControllerBase
 {
     private readonly IMessageService _messageService;
-    private readonly IHubContext<ChatHub> _hubContext;
+    private readonly IMessageRealtimeNotifier _messageRealtimeNotifier;
 
-    public MessageController(IMessageService messageService, IHubContext<ChatHub> hubContext)
+    public MessageController(IMessageService messageService, IMessageRealtimeNotifier messageRealtimeNotifier)
     {
         _messageService = messageService;
-        _hubContext = hubContext;
+        _messageRealtimeNotifier = messageRealtimeNotifier;
     }
 
     [HttpPost("send")]
     public async Task<IActionResult> SendMessage([FromBody] SendMessageDto dto)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userId = GetRequiredUserId();
+        if (userId == null)
+            return Unauthorized("User identifier is missing.");
+
         var result = await _messageService.SendMessageAsync(userId, dto);
 
         if (result.ReceiverNotFound)
             return NotFound("Receiver not found.");
 
-        if (dto.ChatGroupId != null)
-        {
-            await _hubContext.Clients.Group(dto.ChatGroupId.ToString())
-                .SendAsync("ReceiveGroupMessage", userId, result.SenderName, dto.Content, result.Timestamp.ToString("o"), dto.ChatGroupId, result.GroupName);
-
-            foreach (var notification in result.CreatedNotifications)
-            {
-                await _hubContext.Clients.User(notification.UserId).SendAsync("ReceiveNotification", new
-                {
-                    notification.Id,
-                    notification.Title,
-                    notification.Description,
-                    Type = notification.Type.ToString().ToLower(),
-                    notification.CreatedAt,
-                    Meta = new { notification.SenderId, notification.ChatGroupId }
-                });
-            }
-        }
-        else if (!string.IsNullOrEmpty(dto.ReceiverId))
-        {
-            await _hubContext.Clients.User(dto.ReceiverId)
-                .SendAsync("ReceivePrivateMessage", userId, result.SenderName, dto.Content, result.Timestamp);
-
-            await _hubContext.Clients.User(userId)
-                .SendAsync("ReceivePrivateMessage", userId, result.SenderName, dto.Content, result.Timestamp);
-
-            var notification = result.CreatedNotifications.FirstOrDefault();
-            if (notification != null)
-            {
-                await _hubContext.Clients.User(dto.ReceiverId).SendAsync("ReceiveNotification", new
-                {
-                    notification.Id,
-                    notification.Title,
-                    notification.Description,
-                    Type = notification.Type.ToString().ToLower(),
-                    notification.CreatedAt,
-                    Meta = new { notification.SenderId, notification.ChatGroupId }
-                });
-            }
-        }
-        else
-        {
-            await _hubContext.Clients.All.SendAsync("ReceiveMessage", userId, dto.Content, result.Timestamp);
-        }
+        await _messageRealtimeNotifier.NotifyMessageSentAsync(userId, dto, result);
 
         return Ok(new
         {
@@ -99,7 +58,10 @@ public class MessageController : ControllerBase
     [HttpGet("private/{receiverId}")]
     public async Task<IActionResult> GetPrivateMessages(string receiverId, [FromQuery] PaginationParams pagination)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userId = GetRequiredUserId();
+        if (userId == null)
+            return Unauthorized("User identifier is missing.");
+
         var result = await _messageService.GetPrivateMessagesAsync(userId, receiverId, pagination);
         return Ok(result);
     }
@@ -129,7 +91,10 @@ public class MessageController : ControllerBase
     [HttpGet("groupsUser")]
     public async Task<IActionResult> GetUserGroups()
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userId = GetRequiredUserId();
+        if (userId == null)
+            return Unauthorized("User identifier is missing.");
+
         var groups = await _messageService.GetUserGroupsAsync(userId);
         return Ok(groups);
     }
@@ -140,7 +105,10 @@ public class MessageController : ControllerBase
         if (string.IsNullOrWhiteSpace(q))
             return BadRequest("Search query is required");
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userId = GetRequiredUserId();
+        if (userId == null)
+            return Unauthorized("User identifier is missing.");
+
         var result = await _messageService.SearchMessagesAsync(userId, q, pagination);
         return Ok(result);
     }
@@ -148,14 +116,12 @@ public class MessageController : ControllerBase
     [HttpPut("read/private/{senderId}")]
     public async Task<IActionResult> MarkPrivateMessagesAsRead(string senderId)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var readMessageIds = await _messageService.MarkMessagesAsReadAsync(userId, senderId);
+        var userId = GetRequiredUserId();
+        if (userId == null)
+            return Unauthorized("User identifier is missing.");
 
-        if (readMessageIds.Count > 0)
-        {
-            await _hubContext.Clients.User(senderId)
-                .SendAsync("MessagesRead", userId, readMessageIds);
-        }
+        var readMessageIds = await _messageService.MarkMessagesAsReadAsync(userId, senderId);
+        await _messageRealtimeNotifier.NotifyPrivateMessagesReadAsync(userId, senderId, readMessageIds);
 
         return Ok(new { markedAsRead = readMessageIds.Count });
     }
@@ -163,15 +129,18 @@ public class MessageController : ControllerBase
     [HttpPut("read/group/{groupId}")]
     public async Task<IActionResult> MarkGroupMessagesAsRead(int groupId)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var readMessageIds = await _messageService.MarkGroupMessagesAsReadAsync(userId, groupId);
+        var userId = GetRequiredUserId();
+        if (userId == null)
+            return Unauthorized("User identifier is missing.");
 
-        if (readMessageIds.Count > 0)
-        {
-            await _hubContext.Clients.Group(groupId.ToString())
-                .SendAsync("GroupMessagesRead", userId, groupId, readMessageIds);
-        }
+        var readMessageIds = await _messageService.MarkGroupMessagesAsReadAsync(userId, groupId);
+        await _messageRealtimeNotifier.NotifyGroupMessagesReadAsync(userId, groupId, readMessageIds);
 
         return Ok(new { markedAsRead = readMessageIds.Count });
+    }
+
+    private string? GetRequiredUserId()
+    {
+        return User.FindFirstValue(ClaimTypes.NameIdentifier);
     }
 }

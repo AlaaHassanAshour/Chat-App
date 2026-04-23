@@ -64,7 +64,7 @@ const mapMessages = (rows, currentUserId) =>
     chatGroupId: m.chatGroupId,
     senderName: m.senderName,
     content: m.content,
-    mine: m.senderId === currentUserId,
+    mine: normalizeUserId(m.senderId) === normalizeUserId(currentUserId),
     timestamp: m.timestamp,
     isRead: Boolean(m.isRead || m.readAt),
     readAt: m.readAt || null,
@@ -73,10 +73,40 @@ const mapMessages = (rows, currentUserId) =>
 const extractMessageRows = (payload) => {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.messages)) return payload.messages;
+  if (Array.isArray(payload?.Messages)) return payload.Messages;
   if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.Items)) return payload.Items;
   if (Array.isArray(payload?.data?.messages)) return payload.data.messages;
+  if (Array.isArray(payload?.data?.Messages)) return payload.data.Messages;
+  if (Array.isArray(payload?.data?.items)) return payload.data.items;
+  if (Array.isArray(payload?.data?.Items)) return payload.data.Items;
   if (Array.isArray(payload?.data)) return payload.data;
   return [];
+};
+
+const compareMessageTime = (left, right) =>
+  new Date(left?.timestamp || 0).getTime() - new Date(right?.timestamp || 0).getTime();
+
+const buildMessageKey = (message) =>
+  [
+    message?.id ?? "",
+    message?.senderId ?? "",
+    message?.receiverId ?? "",
+    message?.chatGroupId ?? "",
+    message?.timestamp ?? "",
+    message?.content ?? "",
+  ].join("|");
+
+const normalizeConversationMessages = (rows, currentUserId) => {
+  const seen = new Map();
+
+  mapMessages(extractMessageRows(rows), currentUserId)
+    .sort(compareMessageTime)
+    .forEach((message) => {
+      seen.set(buildMessageKey(message), message);
+    });
+
+  return Array.from(seen.values()).sort(compareMessageTime);
 };
 
 const normalizeGroupName = (groupName) => (groupName || "").trim().toLowerCase();
@@ -199,6 +229,7 @@ export default function ChatRoom() {
   const groupTypingTimeoutsRef = useRef({});
   const recentNotificationRef = useRef(new Map());
   const typingEmitTimeoutRef = useRef(null);
+  const conversationLoadIdRef = useRef(0);
 
   /* ------------------------------------------------------------------ */
   /* 🔌 SignalR connection (once) */
@@ -261,20 +292,25 @@ export default function ChatRoom() {
         !isMine && selectedDirectKey && senderKey === selectedDirectKey;
       const notificationKey = `direct:${senderKey}:${timestamp}:${content}`;
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${senderId}-${timestamp}`,
-          senderId,
-          receiverId: isMine ? selectedReceiverId : currentUserId,
-          senderName,
-          content,
-          mine: isMine,
-          timestamp,
-          isRead: false,
-          readAt: null,
-        },
-      ]);
+      setMessages((prev) =>
+        normalizeConversationMessages(
+          [
+            ...prev,
+            {
+              id: `${senderId}-${timestamp}`,
+              senderId,
+              receiverId: isMine ? selectedReceiverId : currentUserId,
+              senderName,
+              content,
+              mine: isMine,
+              timestamp,
+              isRead: false,
+              readAt: null,
+            },
+          ],
+          currentUserId
+        )
+      );
 
       if (!isMine && !isActiveDirectConversation && shouldEmitNotification(notificationKey)) {
         pushNotification({
@@ -305,20 +341,25 @@ export default function ChatRoom() {
         !isMine && selectedGroupKey && groupKey && groupKey === selectedGroupKey;
       const notificationKey = `group:${groupKey}:${senderId}:${timestamp}:${content}`;
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${groupId}-${senderId}-${timestamp}`,
-          senderId,
-          chatGroupId: groupId,
-          senderName,
-          content,
-          mine: isMine,
-          timestamp,
-          isRead: false,
-          readAt: null,
-        },
-      ]);
+      setMessages((prev) =>
+        normalizeConversationMessages(
+          [
+            ...prev,
+            {
+              id: `${groupId}-${senderId}-${timestamp}`,
+              senderId,
+              chatGroupId: groupId,
+              senderName,
+              content,
+              mine: isMine,
+              timestamp,
+              isRead: false,
+              readAt: null,
+            },
+          ],
+          currentUserId
+        )
+      );
 
       if (!isMine && !isActiveGroupConversation && shouldEmitNotification(notificationKey)) {
         pushNotification({
@@ -860,17 +901,33 @@ export default function ChatRoom() {
   /* 📡 load direct‑chat messages */
   useEffect(() => {
     if (!selectedReceiverId) return;
+
+    let isCancelled = false;
+    const loadId = ++conversationLoadIdRef.current;
+
     (async () => {
       try {
         setMessagesLoading(true);
+        setMessages([]);
         const data = await getPrivateMessages(selectedReceiverId);
-        setMessages(mapMessages(extractMessageRows(data), currentUserId));
+
+        if (isCancelled || loadId !== conversationLoadIdRef.current) return;
+
+        setMessages(normalizeConversationMessages(data, currentUserId));
       } catch (e) {
-        console.error("direct msgs error:", e);
+        if (!isCancelled) {
+          console.error("direct msgs error:", e);
+        }
       } finally {
-        setMessagesLoading(false);
+        if (!isCancelled && loadId === conversationLoadIdRef.current) {
+          setMessagesLoading(false);
+        }
       }
     })();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [selectedReceiverId, currentUserId]);
 
   useEffect(() => {
@@ -905,21 +962,8 @@ export default function ChatRoom() {
     async (groupId) => {
       if (!hub) return;
       await hub.invoke("JoinGroup", groupId.toString());
-
-      setSelectedGroupId(groupId);
-      setSelectedReceiverId(null);
-
-      try {
-        setMessagesLoading(true);
-        const rows = await getMassegesGroups(groupId);
-        setMessages(mapMessages(extractMessageRows(rows), currentUserId));
-      } catch (e) {
-        console.error("group msgs error:", e);
-      } finally {
-        setMessagesLoading(false);
-      }
     },
-    [hub, currentUserId]
+    [hub]
   );
 
   useEffect(() => {
@@ -929,10 +973,53 @@ export default function ChatRoom() {
       return;
     }
 
-    if (routeGroupId && hub) {
-      joinGroup(routeGroupId.toString());
+    if (routeGroupId) {
+      setSelectedGroupId(routeGroupId.toString());
+      setSelectedReceiverId(null);
+      return;
     }
-  }, [routeUserId, routeGroupId, hub, joinGroup]);
+
+    setSelectedReceiverId(null);
+    setSelectedGroupId(null);
+    setMessages([]);
+  }, [routeUserId, routeGroupId]);
+
+  useEffect(() => {
+    if (!selectedGroupId) return;
+
+    let isCancelled = false;
+    const loadId = ++conversationLoadIdRef.current;
+
+    (async () => {
+      try {
+        setMessagesLoading(true);
+        setMessages([]);
+        const rows = await getMassegesGroups(selectedGroupId);
+
+        if (isCancelled || loadId !== conversationLoadIdRef.current) return;
+
+        setMessages(normalizeConversationMessages(rows, currentUserId));
+      } catch (e) {
+        if (!isCancelled) {
+          console.error("group msgs error:", e);
+        }
+      } finally {
+        if (!isCancelled && loadId === conversationLoadIdRef.current) {
+          setMessagesLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedGroupId, currentUserId]);
+
+  useEffect(() => {
+    if (!selectedGroupId || !hub) return;
+
+    joinGroup(selectedGroupId);
+  }, [selectedGroupId, hub, joinGroup]);
 
   useEffect(() => {
     if (!selectedGroupId || messagesLoading) return;
