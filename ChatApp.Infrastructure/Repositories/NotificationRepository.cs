@@ -16,9 +16,16 @@ public class NotificationRepository : INotificationRepository
         await _context.SaveChangesAsync();
         return notification;
     }
+ 
 
-    public async Task<Notification> GetByIdAsync(int id) => await _context.Notifications.FindAsync(id);
-
+    public async Task<Notification> GetByIdAsync(int id)
+    {
+        var notification = await _context.Notifications.FindAsync(id);
+        if (notification == null) {
+            return null;
+        }
+        return notification;
+    }
     public async Task<List<Notification>> GetByUserAsync(string userId, int skip, int take)
         => await _context.Notifications.Where(n => n.UserId == userId)
             .OrderByDescending(n => n.CreatedAt).Skip(skip).Take(take).ToListAsync();
@@ -49,4 +56,11 @@ public class NotificationRepository : INotificationRepository
     }
 
     public async Task SaveChangesAsync() => await _context.SaveChangesAsync();
+
+    public async Task<List<Notification>> AddRangeAsync(List<Notification> notifications)
+    {
+        _context.Notifications.AddRange(notifications);
+        await _context.SaveChangesAsync();
+        return notifications;
+    }
 }

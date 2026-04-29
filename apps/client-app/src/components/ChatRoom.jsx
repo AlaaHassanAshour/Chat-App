@@ -395,6 +395,38 @@ export default function ChatRoom() {
       const isActiveGroupConversation =
         conversationType === "group" && selectedGroupKey && groupKey === selectedGroupKey;
       const notificationKey = `${conversationType}:${groupKey || senderKey}:${notification.createdAt || notification.CreatedAt || ""}:${notification.description || notification.Description || ""}`;
+      // إشعار إضافة عضو جديد لمجموعة: أضفه لقائمة الجرس أيضًا
+      if (
+        (notification.title && notification.title.includes("تمت إضافتك إلى مجموعة")) ||
+        (notification.description && notification.description.includes("تمت إضافتك إلى مجموعة")) ||
+        (notification.title && notification.title.includes("Group invitation")) ||
+        (notification.description && notification.description.includes("added to group")) ||
+        (notification.description && notification.description.match(/You have been added to group/i))
+      ) {
+        // استخراج اسم المجموعة واسم المنشئ من الـ description إذا كانت بالإنجليزية
+        let groupName = "";
+        let ownerName = notification.senderName || notification.SenderName || "";
+        const match = (notification.description || "").match(/You have been added to group '(.+)' by (.+)/i);
+        if (match) {
+          groupName = match[1];
+          ownerName = match[2];
+        }
+        // رسالة معربة للمستخدم
+        const arTitle = "تمت إضافتك إلى مجموعة";
+        const arDescription = `تمت إضافتك إلى المجموعة ${groupName || ""} بواسطة ${ownerName || ""}`;
+        pushNotification({
+          title: arTitle,
+          description: arDescription,
+          type: notification.type || "info",
+          meta: {
+            groupId: notification.ChatGroupId || notification.chatGroupId || "",
+            senderName: ownerName,
+            timestamp: notification.CreatedAt || notification.createdAt || new Date().toISOString(),
+            conversationType: "group",
+          },
+        });
+        return;
+      }
 
       if (isMine) return;
       if (isActiveDirectConversation || isActiveGroupConversation) return;

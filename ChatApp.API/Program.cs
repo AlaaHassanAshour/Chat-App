@@ -15,6 +15,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Serilog;
+using ChatApp.Infrastructure.Dependency;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -133,14 +134,7 @@ builder.Services.AddApiVersioning(options =>
     options.GroupNameFormat = "'v'VVV";
     options.SubstituteApiVersionInUrl = true;
 });
-builder.Services.AddScoped<IJwtService, JwtService>();
-builder.Services.AddScoped<IMessageService, ChatApp.Application.Services.MessageService>();
-builder.Services.AddScoped<IMessageRepository, ChatApp.Infrastructure.Repositories.MessageRepository>();
-builder.Services.AddScoped<INotificationRepository, ChatApp.Infrastructure.Repositories.NotificationRepository>();
-builder.Services.AddScoped<IUserRepository, ChatApp.Infrastructure.Repositories.UserRepository>();
-builder.Services.AddScoped<IChatGroupRepository, ChatApp.Infrastructure.Repositories.ChatGroupRepository>();
-builder.Services.AddScoped<IChatGroupUserRepository, ChatApp.Infrastructure.Repositories.ChatGroupUserRepository>();
-builder.Services.AddScoped<INotificationService, ChatApp.Application.Services.NotificationService>();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddRateLimiter(options =>
 {

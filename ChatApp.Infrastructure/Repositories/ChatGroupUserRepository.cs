@@ -22,5 +22,19 @@ public class ChatGroupUserRepository : IChatGroupUserRepository
     public async Task<List<ChatGroupUser>> GetByGroupIdAsync(int groupId)
         => await _context.ChatGroupUsers.Include(gm => gm.User).Where(gm => gm.ChatGroupId == groupId).ToListAsync();
 
+    public async Task RemoveUserFromGroupAsync(string userId, int groupId)
+    {
+        var membership = await _context.ChatGroupUsers.FirstOrDefaultAsync(x => x.UserId == userId && x.ChatGroupId == groupId);
+        if (membership != null)
+        {
+            _context.ChatGroupUsers.Remove(membership);
+            await _context.SaveChangesAsync();
+        }
+    }
+
     public async Task SaveChangesAsync() => await _context.SaveChangesAsync();
+    public async Task<bool> IsUserInGroupAsync(string userId, int groupId)
+    {
+        return await _context.ChatGroupUsers.AnyAsync(x => x.UserId == userId && x.ChatGroupId == groupId);
+    }
 }

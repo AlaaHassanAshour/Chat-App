@@ -14,4 +14,5 @@ public interface INotificationRepository
     Task DeleteAsync(Notification notification);
     Task DeleteAllByUserAsync(string userId);
     Task SaveChangesAsync();
+    Task<List<Notification>> AddRangeAsync(List<Notification> notifications);
 }

@@ -109,9 +109,12 @@ public class MessageService : IMessageService
 
     public async Task<GroupResponseDto> CreateGroupAsync(CreateChatGroupDto dto)
     {
+        // نفترض أن أول عضو هو المنشئ (أو مرر userId من Controller)
+        var ownerId = dto.MemberIds.FirstOrDefault();
         var group = await _groupRepo.AddAsync(new ChatGroup
         {
-            Name = dto.Name
+            Name = dto.Name,
+            OwnerId = ownerId
         });
 
         var members = dto.MemberIds
@@ -126,6 +129,25 @@ public class MessageService : IMessageService
         if (members.Count > 0)
         {
             await _groupUserRepo.AddRangeAsync(members);
+        }
+
+        // إرسال إشعار لكل عضو (عدا منشئ المجموعة)
+        var creatorId = members.FirstOrDefault()?.UserId;
+        foreach (var member in members)
+        {
+            // لا ترسل إشعار لمنشئ المجموعة
+            if (member.UserId == creatorId)
+                continue;
+
+            await _notificationRepo.AddAsync(new Notification
+            {
+                Title = "Group invitation",
+                Description = $"You have been added to group '{group.Name}' by {creatorId}",
+                Type = NotificationType.Info,
+                UserId = member.UserId,
+                SenderId = creatorId,
+                ChatGroupId = group.Id
+            });
         }
 
         return new GroupResponseDto
@@ -191,6 +213,7 @@ public class MessageService : IMessageService
 
     public async Task<List<GroupResponseDto>> GetAllGroupsAsync()
     {
+
         var groups = await _groupRepo.GetAllAsync();
         return groups.Select(group => new GroupResponseDto
         {
@@ -257,6 +280,25 @@ public class MessageService : IMessageService
         return unreadMessages.Select(message => message.Id).ToList();
     }
 
+    public async Task<ChatGroup> GetGroupByIdAsync(int groupId)
+    {
+        return await _groupRepo.GetByIdAsync(groupId);
+    }
+
+    public async Task DeleteGroupAsync(int groupId)
+    {
+        var group = await _groupRepo.GetByIdAsync(groupId);
+        if (group != null)
+        {
+            await _groupRepo.RemoveAsync(group);
+        }
+    }
+
+    public async Task LeaveGroupAsync(string userId, int groupId)
+    {
+        await _groupUserRepo.RemoveUserFromGroupAsync(userId, groupId);
+    }
+
     private static MessageResponseDto MapMessage(Message message)
     {
         return new MessageResponseDto
@@ -272,4 +314,57 @@ public class MessageService : IMessageService
             ReadAt = message.ReadAt
         };
     }
+
+    public async Task<GroupResponseDto> CreateGroupAsync(CreateChatGroupDto dto, string ownerId)
+    {
+        var group = await _groupRepo.AddAsync(new ChatGroup
+        {
+            Name = dto.Name,
+            OwnerId = ownerId
+        });
+
+        var members = dto.MemberIds
+            .Distinct()
+            .Select(userId => new ChatGroupUser
+            {
+                UserId = userId,
+                ChatGroupId = group.Id
+            })
+            .ToList();
+
+        if (members.Count > 0)
+        {
+            await _groupUserRepo.AddRangeAsync(members);
+        }
+
+        // Bulk notifications (exclude owner)
+        var notifications = members
+            .Where(m => m.UserId != ownerId)
+            .Select(m => new Notification
+            {
+                Title = "Group invitation",
+                Description = $"You have been added to group '{group.Name}' by {ownerId}",
+                Type = NotificationType.Info,
+                UserId = m.UserId,
+                SenderId = ownerId,
+                ChatGroupId = group.Id
+            })
+            .ToList();
+        if (notifications.Count > 0)
+        {
+            foreach (var notification in notifications)
+            {
+                await _notificationRepo.AddAsync(notification);
+            }
+        }
+
+        return new GroupResponseDto
+        {
+            Id = group.Id,
+            Name = group.Name
+        };
+    }
+
+
+
 }

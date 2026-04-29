@@ -49,6 +49,27 @@ public class MessageRealtimeNotifier : IMessageRealtimeNotifier
             .SendAsync("GroupMessagesRead", readerUserId, groupId, readMessageIds);
     }
 
+    public async Task NotifyGroupInvitationAsync(int groupId, string groupName, string creatorName, List<string> memberIds)
+    {
+        foreach (var memberId in memberIds)
+        {
+            if (memberId == creatorName) // استثناء منشئ المجموعة من تلقي دعوة المجموعة
+                continue;
+
+            await _hubContext.Clients.User(memberId).SendAsync(
+                "ReceiveNotification",
+                new
+                {
+                    Title = "Group invitation",
+                    Description = $"You have been added to group '{groupName}' by {creatorName}",
+                    Type = "info",
+                    ChatGroupId = groupId,
+                    SenderName = creatorName,
+                    CreatedAt = DateTime.UtcNow
+                });
+        }
+    }
+
     private async Task NotifyGroupMessageSentAsync(string senderId, int groupId, SendMessageResultDto result)
     {
         await _hubContext.Clients.Group(groupId.ToString())
@@ -58,12 +79,21 @@ public class MessageRealtimeNotifier : IMessageRealtimeNotifier
                 result.SenderName,
                 result.Content,
                 result.Timestamp.ToString("o"),
-                groupId,
-                result.GroupName);
+                result.ChatGroupId,
+                result.GroupName
+            );
 
         foreach (var notification in result.CreatedNotifications)
         {
-            await _hubContext.Clients.User(notification.UserId).SendAsync("ReceiveNotification", BuildNotificationPayload(notification));
+            await _hubContext.Clients.User(notification.UserId).SendAsync("ReceiveNotification", new
+            {
+                notification.Id,
+                notification.Title,
+                notification.Description,
+                Type = notification.Type.ToString().ToLower(),
+                notification.CreatedAt,
+                Meta = new { notification.SenderId, notification.ChatGroupId }
+            });
         }
     }
 
@@ -78,21 +108,15 @@ public class MessageRealtimeNotifier : IMessageRealtimeNotifier
         var notification = result.CreatedNotifications.FirstOrDefault();
         if (notification != null)
         {
-            await _hubContext.Clients.User(receiverId)
-                .SendAsync("ReceiveNotification", BuildNotificationPayload(notification));
+            await _hubContext.Clients.User(receiverId).SendAsync("ReceiveNotification", new
+            {
+                notification.Id,
+                notification.Title,
+                notification.Description,
+                Type = notification.Type.ToString().ToLower(),
+                notification.CreatedAt,
+                Meta = new { notification.SenderId, notification.ChatGroupId }
+            });
         }
-    }
-
-    private static object BuildNotificationPayload(Notification notification)
-    {
-        return new
-        {
-            notification.Id,
-            notification.Title,
-            notification.Description,
-            Type = notification.Type.ToString().ToLower(),
-            notification.CreatedAt,
-            Meta = new { notification.SenderId, notification.ChatGroupId }
-        };
     }
 }

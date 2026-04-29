@@ -1,6 +1,5 @@
 using ChatApp.Application.DTOs;
 using ChatApp.Application.Interfaces;
-using ChatApp.Application.Models;
 
 namespace ChatApp.Application.Services;
 
