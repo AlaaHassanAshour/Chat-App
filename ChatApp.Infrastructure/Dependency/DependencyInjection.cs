@@ -1,15 +1,12 @@
-﻿using ChatApp.Application.Interfaces;
+using ChatApp.Application.Events;
+using ChatApp.Application.Events.Handlers;
+using ChatApp.Application.Interfaces;
 using ChatApp.Infrastructure.Data;
 using ChatApp.Infrastructure.Repositories;
 using ChatApp.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ChatApp.Infrastructure.Dependency;
 
@@ -26,7 +23,9 @@ public static class DependencyInjection
         services.AddScoped<IChatGroupRepository, ChatGroupRepository>();
         services.AddScoped<IChatGroupUserRepository, ChatGroupUserRepository>();
         services.AddScoped<IJwtService, JwtService>();
-        services.AddScoped<IJwtService, JwtService>();
+        services.AddScoped<ILocalEventDispatcher, LocalEventDispatcher>();
+        services.AddScoped<ILocalEventHandler<MessageSentLocalEvent>, MessageNotificationEventHandler>();
+        services.AddScoped<ILocalEventHandler<GroupCreatedLocalEvent>, GroupNotificationEventHandler>();
         services.AddScoped<IMessageService, ChatApp.Application.Services.MessageService>();
         services.AddScoped<INotificationService, ChatApp.Application.Services.NotificationService>();
 

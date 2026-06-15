@@ -1,7 +1,7 @@
+using Asp.Versioning;
+using ChatApp.API.Services;
 using ChatApp.Application.DTOs;
 using ChatApp.Application.Interfaces;
-using ChatApp.API.Services;
-using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -17,15 +17,16 @@ public class MessageController : ControllerBase
 {
     private readonly IMessageService _messageService;
     private readonly IMessageRealtimeNotifier _messageRealtimeNotifier;
-    private readonly IUserRepository _userRepository; // إضافة IUserRepository
-    private readonly IChatGroupUserRepository _groupUserRepo; // إضافة IChatGroupUserRepository
+    private readonly IChatGroupUserRepository _groupUserRepo;
 
-    public MessageController(IMessageService messageService, IMessageRealtimeNotifier messageRealtimeNotifier, IUserRepository userRepository, IChatGroupUserRepository groupUserRepo)
+    public MessageController(
+        IMessageService messageService,
+        IMessageRealtimeNotifier messageRealtimeNotifier,
+        IChatGroupUserRepository groupUserRepo)
     {
         _messageService = messageService;
         _messageRealtimeNotifier = messageRealtimeNotifier;
-        _userRepository = userRepository; // تهيئة IUserRepository
-        _groupUserRepo = groupUserRepo; // تهيئة IChatGroupUserRepository   
+        _groupUserRepo = groupUserRepo;
     }
 
     [HttpPost("send")]
@@ -39,8 +40,6 @@ public class MessageController : ControllerBase
 
         if (result.ReceiverNotFound)
             return NotFound("Receiver not found.");
-
-        await _messageRealtimeNotifier.NotifyMessageSentAsync(userId, dto, result);
 
         return Ok(new
         {
@@ -59,23 +58,10 @@ public class MessageController : ControllerBase
         if (userId == null)
             return Unauthorized("User identifier is missing.");
 
-        // أضف المنشئ لقائمة الأعضاء إذا لم يكن موجوداً
         if (!dto.MemberIds.Contains(userId))
             dto.MemberIds.Insert(0, userId);
 
         var group = await _messageService.CreateGroupAsync(dto, userId);
-
-        // جلب اسم المنشئ
-        var user = await _userRepository.GetByIdAsync(userId);
-        var creatorName = user?.Email ?? user?.UserName ?? userId;
-
-        // إرسال إشعار SignalR مع اسم المنشئ
-        await _messageRealtimeNotifier.NotifyGroupInvitationAsync(
-            group.Id,
-            group.Name,
-            creatorName,
-            dto.MemberIds.Distinct().ToList()
-        );
 
         return Ok(group);
     }
@@ -94,12 +80,10 @@ public class MessageController : ControllerBase
     [HttpGet("group/{groupId}")]
     public async Task<IActionResult> GetGroupMessages(int groupId, [FromQuery] PaginationParams pagination)
     {
-        // احصل على معرف المستخدم الحالي (حسب طريقة المصادقة لديك)
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userId))
+        var userId = GetRequiredUserId();
+        if (userId == null)
             return Unauthorized();
 
-        // تحقق أن المستخدم عضو في المجموعة
         var isMember = await _groupUserRepo.IsUserInGroupAsync(userId, groupId);
         if (!isMember)
             return Forbid();

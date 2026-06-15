@@ -1,3 +1,4 @@
+using ChatApp.Application.Events;
 using ChatApp.Application.Interfaces;
 using ChatApp.Application.Models;
 using ChatApp.API.Hubs;
@@ -135,6 +136,9 @@ builder.Services.AddApiVersioning(options =>
     options.SubstituteApiVersionInUrl = true;
 });
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddScoped<RealtimeLocalEventHandler>();
+builder.Services.AddScoped<ILocalEventHandler<MessageSentLocalEvent>>(provider => provider.GetRequiredService<RealtimeLocalEventHandler>());
+builder.Services.AddScoped<ILocalEventHandler<GroupCreatedLocalEvent>>(provider => provider.GetRequiredService<RealtimeLocalEventHandler>());
 
 builder.Services.AddRateLimiter(options =>
 {

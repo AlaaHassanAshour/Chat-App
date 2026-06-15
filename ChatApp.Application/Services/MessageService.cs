@@ -1,4 +1,5 @@
 using ChatApp.Application.DTOs;
+using ChatApp.Application.Events;
 using ChatApp.Application.Interfaces;
 using ChatApp.Application.Models;
 
@@ -10,20 +11,20 @@ public class MessageService : IMessageService
     private readonly IChatGroupRepository _groupRepo;
     private readonly IChatGroupUserRepository _groupUserRepo;
     private readonly IUserRepository _userRepo;
-    private readonly INotificationRepository _notificationRepo;
+    private readonly ILocalEventDispatcher _localEventDispatcher;
 
     public MessageService(
         IMessageRepository repo,
         IChatGroupRepository groupRepo,
         IChatGroupUserRepository groupUserRepo,
         IUserRepository userRepo,
-        INotificationRepository notificationRepo)
+        ILocalEventDispatcher localEventDispatcher)
     {
         _repo = repo;
         _groupRepo = groupRepo;
         _groupUserRepo = groupUserRepo;
         _userRepo = userRepo;
-        _notificationRepo = notificationRepo;
+        _localEventDispatcher = localEventDispatcher;
     }
 
     public async Task<SendMessageResultDto> SendMessageAsync(string userId, SendMessageDto dto)
@@ -72,49 +73,24 @@ public class MessageService : IMessageService
 
             result.GroupName = group?.Name;
             result.NotifyUserIds = memberIds;
-
-            foreach (var memberId in memberIds)
-            {
-                var notification = await _notificationRepo.AddAsync(new Notification
-                {
-                    Title = "New group message",
-                    Description = $"{result.SenderName} sent a message in {group?.Name}",
-                    Type = NotificationType.Info,
-                    UserId = memberId,
-                    SenderId = userId,
-                    ChatGroupId = dto.ChatGroupId
-                });
-
-                result.CreatedNotifications.Add(notification);
-            }
         }
         else if (!string.IsNullOrWhiteSpace(dto.ReceiverId))
         {
             result.NotifyUserIds = new List<string> { dto.ReceiverId };
-
-            var notification = await _notificationRepo.AddAsync(new Notification
-            {
-                Title = "New private message",
-                Description = $"{result.SenderName} sent you a message",
-                Type = NotificationType.Info,
-                UserId = dto.ReceiverId,
-                SenderId = userId
-            });
-
-            result.CreatedNotifications.Add(notification);
         }
+
+        await _localEventDispatcher.PublishAsync(new MessageSentLocalEvent(userId, dto, result));
 
         return result;
     }
 
     public async Task<GroupResponseDto> CreateGroupAsync(CreateChatGroupDto dto)
     {
-        // نفترض أن أول عضو هو المنشئ (أو مرر userId من Controller)
         var ownerId = dto.MemberIds.FirstOrDefault();
         var group = await _groupRepo.AddAsync(new ChatGroup
         {
             Name = dto.Name,
-            OwnerId = ownerId
+            OwnerId = ownerId ?? string.Empty
         });
 
         var members = dto.MemberIds
@@ -131,24 +107,15 @@ public class MessageService : IMessageService
             await _groupUserRepo.AddRangeAsync(members);
         }
 
-        // إرسال إشعار لكل عضو (عدا منشئ المجموعة)
-        var creatorId = members.FirstOrDefault()?.UserId;
-        foreach (var member in members)
-        {
-            // لا ترسل إشعار لمنشئ المجموعة
-            if (member.UserId == creatorId)
-                continue;
+        var owner = string.IsNullOrWhiteSpace(ownerId) ? null : await _userRepo.GetByIdAsync(ownerId);
+        var ownerName = owner?.Email ?? owner?.UserName ?? ownerId ?? string.Empty;
 
-            await _notificationRepo.AddAsync(new Notification
-            {
-                Title = "Group invitation",
-                Description = $"You have been added to group '{group.Name}' by {creatorId}",
-                Type = NotificationType.Info,
-                UserId = member.UserId,
-                SenderId = creatorId,
-                ChatGroupId = group.Id
-            });
-        }
+        await _localEventDispatcher.PublishAsync(new GroupCreatedLocalEvent(
+            group.Id,
+            group.Name,
+            ownerId ?? string.Empty,
+            ownerName,
+            members.Select(member => member.UserId).ToList()));
 
         return new GroupResponseDto
         {
@@ -213,7 +180,6 @@ public class MessageService : IMessageService
 
     public async Task<List<GroupResponseDto>> GetAllGroupsAsync()
     {
-
         var groups = await _groupRepo.GetAllAsync();
         return groups.Select(group => new GroupResponseDto
         {
@@ -299,22 +265,6 @@ public class MessageService : IMessageService
         await _groupUserRepo.RemoveUserFromGroupAsync(userId, groupId);
     }
 
-    private static MessageResponseDto MapMessage(Message message)
-    {
-        return new MessageResponseDto
-        {
-            Id = message.Id,
-            Content = message.Content,
-            Timestamp = message.Timestamp,
-            ChatGroupId = message.ChatGroupId,
-            SenderId = message.SenderId,
-            ReceiverId = message.ReceiverId,
-            SenderName = message.Sender?.Email ?? message.Sender?.UserName ?? string.Empty,
-            IsRead = message.IsRead,
-            ReadAt = message.ReadAt
-        };
-    }
-
     public async Task<GroupResponseDto> CreateGroupAsync(CreateChatGroupDto dto, string ownerId)
     {
         var group = await _groupRepo.AddAsync(new ChatGroup
@@ -337,26 +287,15 @@ public class MessageService : IMessageService
             await _groupUserRepo.AddRangeAsync(members);
         }
 
-        // Bulk notifications (exclude owner)
-        var notifications = members
-            .Where(m => m.UserId != ownerId)
-            .Select(m => new Notification
-            {
-                Title = "Group invitation",
-                Description = $"You have been added to group '{group.Name}' by {ownerId}",
-                Type = NotificationType.Info,
-                UserId = m.UserId,
-                SenderId = ownerId,
-                ChatGroupId = group.Id
-            })
-            .ToList();
-        if (notifications.Count > 0)
-        {
-            foreach (var notification in notifications)
-            {
-                await _notificationRepo.AddAsync(notification);
-            }
-        }
+        var owner = await _userRepo.GetByIdAsync(ownerId);
+        var ownerName = owner?.Email ?? owner?.UserName ?? ownerId;
+
+        await _localEventDispatcher.PublishAsync(new GroupCreatedLocalEvent(
+            group.Id,
+            group.Name,
+            ownerId,
+            ownerName,
+            members.Select(member => member.UserId).ToList()));
 
         return new GroupResponseDto
         {
@@ -365,6 +304,19 @@ public class MessageService : IMessageService
         };
     }
 
-
-
+    private static MessageResponseDto MapMessage(Message message)
+    {
+        return new MessageResponseDto
+        {
+            Id = message.Id,
+            Content = message.Content,
+            Timestamp = message.Timestamp,
+            ChatGroupId = message.ChatGroupId,
+            SenderId = message.SenderId,
+            ReceiverId = message.ReceiverId,
+            SenderName = message.Sender?.Email ?? message.Sender?.UserName ?? string.Empty,
+            IsRead = message.IsRead,
+            ReadAt = message.ReadAt
+        };
+    }
 }

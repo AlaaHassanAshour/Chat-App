@@ -25,8 +25,8 @@ const getNotificationKey = (item) => {
   }
 
   const type = item.meta?.conversationType || "generic";
-  const senderId = item.meta?.senderId || "";
-  const groupId = item.meta?.groupId || "";
+  const senderId = getNotificationSenderId(item) || "";
+  const groupId = getNotificationGroupId(item) || "";
   const time = item.meta?.timestamp || item.createdAt || "";
   return `sig:${type}:${senderId}:${groupId}:${item.description}:${time}`;
 };
@@ -40,6 +40,31 @@ const dedupeNotifications = (rows) => {
     return true;
   });
 };
+
+const getMetaField = (meta, ...names) => {
+  if (!meta || typeof meta !== "object") return undefined;
+
+  const keys = Object.keys(meta);
+  for (const name of names) {
+    const foundKey = keys.find((key) => key.toLowerCase() === name.toLowerCase());
+    if (foundKey) return meta[foundKey];
+  }
+
+  return undefined;
+};
+
+const getNotificationGroupId = (notification) =>
+  getMetaField(notification?.meta, "groupId", "chatGroupId") ||
+  getMetaField(notification?.Meta, "groupId", "chatGroupId") ||
+  notification?.groupId ||
+  notification?.chatGroupId ||
+  notification?.ChatGroupId;
+
+const getNotificationSenderId = (notification) =>
+  getMetaField(notification?.meta, "senderId") ||
+  getMetaField(notification?.Meta, "senderId") ||
+  notification?.senderId ||
+  notification?.SenderId;
 
 export function NotificationsProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
@@ -158,12 +183,12 @@ export function NotificationsProvider({ children }) {
         if (item.isRead) return false;
         if (senderId) {
           const notificationType = item.meta?.conversationType;
-          const isGroup = notificationType === "group" || Boolean(item.meta?.groupId);
+          const isGroup = notificationType === "group" || Boolean(getNotificationGroupId(item));
           if (isGroup) return false;
-          return item.meta?.senderId?.toString() === senderId.toString();
+          return getNotificationSenderId(item)?.toString() === senderId.toString();
         }
         if (groupId) {
-          return item.meta?.groupId?.toString() === groupId.toString();
+          return getNotificationGroupId(item)?.toString() === groupId.toString();
         }
         return false;
       })

@@ -92,7 +92,7 @@ public class MessageRealtimeNotifier : IMessageRealtimeNotifier
                 notification.Description,
                 Type = notification.Type.ToString().ToLower(),
                 notification.CreatedAt,
-                Meta = new { notification.SenderId, notification.ChatGroupId }
+                Meta = new { notification.SenderId, GroupId = notification.ChatGroupId, notification.ChatGroupId }
             });
         }
     }
@@ -115,7 +115,7 @@ public class MessageRealtimeNotifier : IMessageRealtimeNotifier
                 notification.Description,
                 Type = notification.Type.ToString().ToLower(),
                 notification.CreatedAt,
-                Meta = new { notification.SenderId, notification.ChatGroupId }
+                Meta = new { notification.SenderId, GroupId = notification.ChatGroupId, notification.ChatGroupId }
             });
         }
     }

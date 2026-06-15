@@ -162,6 +162,19 @@ const isDirectNotification = (notification) => {
   return !isGroupNotification(notification) && (type === "direct" || hasSender);
 };
 
+const getNotificationGroupId = (notification) =>
+  getMetaField(notification?.meta, "groupId", "chatGroupId") ||
+  getMetaField(notification?.Meta, "groupId", "chatGroupId") ||
+  notification?.groupId ||
+  notification?.chatGroupId ||
+  notification?.ChatGroupId;
+
+const getNotificationSenderId = (notification) =>
+  getMetaField(notification?.meta, "senderId") ||
+  getMetaField(notification?.Meta, "senderId") ||
+  notification?.senderId ||
+  notification?.SenderId;
+
   /**
  * Decode JWT once whenever token changes.
  */
@@ -673,16 +686,18 @@ export default function ChatRoom() {
       if (n.isRead) return false;
 
       if (selectedGroupId) {
+        const groupId = getNotificationGroupId(n);
         return (
           isGroupNotification(n) &&
-          n.meta?.groupId?.toString() === selectedGroupId?.toString()
+          groupId?.toString() === selectedGroupId?.toString()
         );
       }
 
       if (selectedReceiverId) {
+        const senderId = getNotificationSenderId(n);
         return (
           isDirectNotification(n) &&
-          n.meta?.senderId?.toString() === selectedReceiverId?.toString()
+          senderId?.toString() === selectedReceiverId?.toString()
         );
       }
 
@@ -726,7 +741,7 @@ export default function ChatRoom() {
     notifications
       .filter((n) => !n.isRead && isDirectNotification(n))
       .forEach((n) => {
-        const senderId = n.meta?.senderId || n.senderId;
+        const senderId = getNotificationSenderId(n);
         if (!senderId) return;
         const key = senderId.toString();
         map[key] = (map[key] || 0) + 1;
@@ -744,7 +759,7 @@ export default function ChatRoom() {
     notifications
       .filter((n) => !n.isRead && isGroupNotification(n))
       .forEach((n) => {
-        const groupId = n.meta?.groupId;
+        const groupId = getNotificationGroupId(n);
         if (!groupId) return;
         const key = groupId.toString();
         map[key] = (map[key] || 0) + 1;

@@ -1,4 +1,6 @@
 using ChatApp.Application.DTOs;
+using ChatApp.Application.Events;
+using ChatApp.Application.Events.Handlers;
 using ChatApp.Application.Services;
 using ChatApp.Application.Models;
 using ChatApp.Infrastructure.Data;
@@ -19,12 +21,17 @@ public class MessageServiceTests : IDisposable
             .Options;
 
         _context = new ChatAppContext(options);
+        var notificationRepository = new NotificationRepository(_context);
+        var localEventDispatcher = new TestLocalEventDispatcher(
+            new MessageNotificationEventHandler(notificationRepository),
+            new GroupNotificationEventHandler(notificationRepository));
+
         _service = new MessageService(
             new MessageRepository(_context),
             new ChatGroupRepository(_context),
             new ChatGroupUserRepository(_context),
             new UserRepository(_context),
-            new NotificationRepository(_context));
+            localEventDispatcher);
 
         SeedData();
     }
@@ -35,7 +42,7 @@ public class MessageServiceTests : IDisposable
         var user2 = new AppUser { Id = "user2", Email = "user2@test.com", UserName = "user2@test.com" };
         _context.Users.AddRange(user1, user2);
 
-        var group = new ChatGroup { Id = 1, Name = "TestGroup" };
+        var group = new ChatGroup { Id = 1, Name = "TestGroup", OwnerId = "user1" };
         _context.ChatGroups.Add(group);
         _context.ChatGroupUsers.Add(new ChatGroupUser { UserId = "user1", ChatGroupId = 1 });
         _context.ChatGroupUsers.Add(new ChatGroupUser { UserId = "user2", ChatGroupId = 1 });
@@ -170,5 +177,33 @@ public class MessageServiceTests : IDisposable
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
+    }
+
+    private sealed class TestLocalEventDispatcher : ILocalEventDispatcher
+    {
+        private readonly MessageNotificationEventHandler _messageNotificationEventHandler;
+        private readonly GroupNotificationEventHandler _groupNotificationEventHandler;
+
+        public TestLocalEventDispatcher(
+            MessageNotificationEventHandler messageNotificationEventHandler,
+            GroupNotificationEventHandler groupNotificationEventHandler)
+        {
+            _messageNotificationEventHandler = messageNotificationEventHandler;
+            _groupNotificationEventHandler = groupNotificationEventHandler;
+        }
+
+        public async Task PublishAsync<TEvent>(TEvent localEvent, CancellationToken cancellationToken = default)
+            where TEvent : ILocalEvent
+        {
+            switch (localEvent)
+            {
+                case MessageSentLocalEvent messageSent:
+                    await _messageNotificationEventHandler.HandleAsync(messageSent, cancellationToken);
+                    break;
+                case GroupCreatedLocalEvent groupCreated:
+                    await _groupNotificationEventHandler.HandleAsync(groupCreated, cancellationToken);
+                    break;
+            }
+        }
     }
 }
