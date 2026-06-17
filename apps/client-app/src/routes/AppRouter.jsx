@@ -5,7 +5,6 @@ import { Col, Layout, Row, Spin } from "antd";
 // unprotcted pages
 import LoginPage from "../pages/Login";
 import RegisterPage from "../pages/Register";
-import FileManagerPage from "../pages/FileManager";
 import UsersPage from "../pages/Users";
 import GroupsPage from "../pages/Groups";
 import SettingsPage from "../pages/Settings";

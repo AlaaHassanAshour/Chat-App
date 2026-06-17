@@ -1,3 +1,4 @@
+using ChatApp.Application.Events;
 using ChatApp.Application.Interfaces;
 using ChatApp.Application.Models;
 using ChatApp.API.Hubs;
@@ -15,6 +16,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Serilog;
+using ChatApp.Infrastructure.Dependency;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -110,6 +112,7 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddSingleton<IUserIdProvider, NameUserIdProvider>();
 builder.Services.AddSingleton<UserConnectionManager>();
+builder.Services.AddScoped<IMessageRealtimeNotifier, MessageRealtimeNotifier>();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -132,9 +135,10 @@ builder.Services.AddApiVersioning(options =>
     options.GroupNameFormat = "'v'VVV";
     options.SubstituteApiVersionInUrl = true;
 });
-builder.Services.AddScoped<IJwtService, JwtService>();
-builder.Services.AddScoped<IMessageService, MessageService>();
-builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddScoped<RealtimeLocalEventHandler>();
+builder.Services.AddScoped<ILocalEventHandler<MessageSentLocalEvent>>(provider => provider.GetRequiredService<RealtimeLocalEventHandler>());
+builder.Services.AddScoped<ILocalEventHandler<GroupCreatedLocalEvent>>(provider => provider.GetRequiredService<RealtimeLocalEventHandler>());
 
 builder.Services.AddRateLimiter(options =>
 {

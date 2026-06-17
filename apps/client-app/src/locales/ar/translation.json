@@ -69,7 +69,17 @@
     "member_required": "اختر عضواً واحداً على الأقل",
     "open": "فتح",
     "create_group": "إنشاء مجموعة",
-    "members": "أعضاء"
+    "members": "أعضاء",
+    "delete": "حذف",
+    "delete_confirm_title": "تأكيد حذف المجموعة",
+    "delete_confirm_msg": "هل أنت متأكد أنك تريد حذف هذه المجموعة؟ لا يمكن التراجع عن هذا الإجراء.",
+    "delete_success": "تم حذف المجموعة بنجاح",
+    "delete_error": "فشل في حذف المجموعة",
+    "leave": "مغادرة",
+    "leave_confirm_title": "تأكيد مغادرة المجموعة",
+    "leave_confirm_msg": "هل أنت متأكد أنك تريد مغادرة هذه المجموعة؟",
+    "leave_success": "تمت مغادرة المجموعة بنجاح",
+    "leave_error": "فشل في مغادرة المجموعة"
   },
   "settings": {
     "title": "الإعدادات",

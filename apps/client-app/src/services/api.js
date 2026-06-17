@@ -1,3 +1,12 @@
+// حذف مجموعة
+export const deleteGroup = async (groupId) => {
+  return await apiCommon.delete(`v1/Message/group/${groupId}`);
+};
+
+// مغادرة مجموعة
+export const leaveGroup = async (groupId) => {
+  return await apiCommon.post(`v1/Message/group/${groupId}/leave`);
+};
 import { apiCommon } from "../utils/axiosInstance";
 export const login = async (username, password) => {
   const response = await apiCommon.post("v1/Auth/login", {

@@ -1,7 +1,8 @@
 using ChatApp.Application.DTOs;
+using ChatApp.Application.Services;
 using ChatApp.Application.Models;
 using ChatApp.Infrastructure.Data;
-using ChatApp.Infrastructure.Services;
+using ChatApp.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace ChatApp.Tests;
@@ -18,7 +19,7 @@ public class NotificationServiceTests : IDisposable
             .Options;
 
         _context = new ChatAppContext(options);
-        _service = new NotificationService(_context);
+        _service = new NotificationService(new NotificationRepository(_context));
 
         SeedData();
     }
@@ -63,7 +64,7 @@ public class NotificationServiceTests : IDisposable
 
         Assert.True(result);
         var notification = await _context.Notifications.FindAsync(1);
-        Assert.True(notification.IsRead);
+        Assert.True(notification!.IsRead);
     }
 
     [Fact]
@@ -74,7 +75,7 @@ public class NotificationServiceTests : IDisposable
         Assert.False(result);
     }
 
-    [Fact(Skip = "ExecuteUpdateAsync not supported by InMemory provider")]
+    [Fact]
     public async Task MarkAllAsRead_MarksAllUnread()
     {
         await _service.MarkAllAsReadAsync("user1");
@@ -101,7 +102,7 @@ public class NotificationServiceTests : IDisposable
         Assert.False(result);
     }
 
-    [Fact(Skip = "ExecuteDeleteAsync not supported by InMemory provider")]
+    [Fact]
     public async Task ClearAll_RemovesAllUserNotifications()
     {
         await _service.ClearAllAsync("user1");
